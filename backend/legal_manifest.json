@@ -1,0 +1,46 @@
+[
+  {
+    "kind": "privacy_policy",
+    "version": "draft-2026-08-08",
+    "title": "Политика обработки персональных данных (DRAFT)",
+    "publicPath": "/legal/privacy",
+    "sourcePath": "docs/legal/privacy-policy.md",
+    "contentSha256": "c95589f03abb0b91b0941bc0a6f19250bf1389dc682748e8aa6ae25cdce1e875",
+    "effectiveAt": "2026-08-08T00:00:00Z",
+    "requiredAtRegistration": true,
+    "isDraft": true
+  },
+  {
+    "kind": "personal_data_consent",
+    "version": "draft-2026-08-08",
+    "title": "Согласие на обработку персональных данных (DRAFT)",
+    "publicPath": "/legal/consent",
+    "sourcePath": "docs/legal/personal-data-consent.md",
+    "contentSha256": "6372319637fbe68ac6920ad61f3eb26078598563f81ad0e60ae85f860193faad",
+    "effectiveAt": "2026-08-08T00:00:00Z",
+    "requiredAtRegistration": true,
+    "isDraft": true
+  },
+  {
+    "kind": "user_agreement",
+    "version": "draft-2026-08-08",
+    "title": "Пользовательское соглашение (DRAFT)",
+    "publicPath": "/legal/agreement",
+    "sourcePath": "docs/legal/user-agreement.md",
+    "contentSha256": "d8c3137c57ce5af1bb38862e6a3332779f886e48fe1d2592034ed713a866a678",
+    "effectiveAt": "2026-08-08T00:00:00Z",
+    "requiredAtRegistration": true,
+    "isDraft": true
+  },
+  {
+    "kind": "cookie_storage_notice",
+    "version": "draft-2026-08-08",
+    "title": "Уведомление о cookie и локальном хранилище (DRAFT)",
+    "publicPath": "/legal/cookies",
+    "sourcePath": "docs/legal/cookie-storage-notice.md",
+    "contentSha256": "bcc2d8af7aed92d5e3dc5d387ebd42d9e82b84b8d72741d1edce09030331ff91",
+    "effectiveAt": "2026-08-08T00:00:00Z",
+    "requiredAtRegistration": false,
+    "isDraft": true
+  }
+]

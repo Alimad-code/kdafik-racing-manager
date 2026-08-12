@@ -1,0 +1,586 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --background: 222 20% 6%;
+    --foreground: 214 32% 96%;
+    --card: 222 18% 9%;
+    --card-foreground: 210 30% 96%;
+    --surface: 222 17% 11%;
+    --surface-raised: 220 16% 14%;
+    --surface-track: 220 18% 8%;
+    --line: 218 14% 24%;
+    --line-strong: 216 15% 34%;
+    --primary: 263 70% 50%;
+    --primary-foreground: 210 30% 98%;
+    --secondary: 218 14% 14%;
+    --secondary-foreground: 210 30% 96%;
+    --muted: 218 14% 18%;
+    --muted-foreground: 215 12% 63%;
+    --accent: 258 90% 66%;
+    --accent-foreground: 210 30% 98%;
+    --success: 149 75% 45%;
+    --success-foreground: 156 60% 96%;
+    --warning: 43 91% 57%;
+    --warning-foreground: 38 55% 8%;
+    --danger: 354 100% 65%;
+    --danger-foreground: 0 0% 100%;
+    --info: 207 95% 64%;
+    --info-foreground: 213 65% 8%;
+    --destructive: 354 92% 62%;
+    --destructive-foreground: 210 30% 98%;
+    --border: 218 14% 22%;
+    --input: 218 14% 22%;
+    --ring: 263 70% 50%;
+    --radius: 0.375rem;
+    --shadow-panel: 0 18px 50px rgb(0 0 0 / 0.28);
+    --shadow-inset-line: inset 0 1px 0 rgb(255 255 255 / 0.045);
+    --race-grid-size: 32px;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+    min-height: 100vh;
+    background-color: hsl(var(--background));
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.28) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.28) 1px, transparent 1px);
+    background-attachment: fixed;
+    background-size: var(--race-grid-size) var(--race-grid-size);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+}
+
+@layer components {
+  .race-surface {
+    background:
+      linear-gradient(180deg, hsl(var(--surface-raised) / 0.72), hsl(var(--surface) / 0.94)),
+      hsl(var(--surface));
+    box-shadow: var(--shadow-inset-line);
+  }
+
+  .race-panel {
+    @apply border border-border bg-card shadow-panel;
+    box-shadow: var(--shadow-panel), var(--shadow-inset-line);
+  }
+
+  .legal-markdown {
+    @apply text-sm leading-7 text-foreground;
+  }
+
+  .legal-markdown h2,
+  .legal-markdown h3,
+  .legal-markdown h4,
+  .legal-markdown h5,
+  .legal-markdown h6 {
+    @apply mt-8 font-black uppercase tracking-tight text-foreground;
+  }
+
+  .legal-markdown h2 {
+    @apply border-b border-line pb-2 text-xl;
+  }
+
+  .legal-markdown h3,
+  .legal-markdown h4,
+  .legal-markdown h5,
+  .legal-markdown h6 {
+    @apply text-lg;
+  }
+
+  .legal-markdown p {
+    @apply mt-5 text-muted-foreground;
+  }
+
+  .legal-markdown p:first-child {
+    @apply mt-0;
+  }
+
+  .legal-markdown blockquote {
+    @apply mt-5 border-l-2 border-danger bg-danger/10 px-4 py-3 font-mono text-xs uppercase tracking-wide text-danger;
+  }
+
+  .legal-markdown ul {
+    @apply mt-5 list-disc space-y-2 pl-6 text-muted-foreground;
+  }
+
+  .legal-markdown strong {
+    @apply font-black text-foreground;
+  }
+
+  .legal-markdown code {
+    @apply border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground;
+  }
+
+  .legal-markdown a {
+    @apply text-accent underline underline-offset-2;
+  }
+
+  .race-divider {
+    @apply border-border/80;
+  }
+
+  .timing-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.28) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.28) 1px, transparent 1px);
+    background-size: var(--race-grid-size) var(--race-grid-size);
+  }
+
+  .timing-value {
+    @apply font-mono font-black tabular-nums tracking-tight text-foreground;
+  }
+
+  .metadata-label {
+    @apply text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .page-title-shadow {
+    text-shadow: 2px 2px 0 hsl(var(--primary) / 0.65);
+  }
+
+  .race-weekend-stage {
+    @apply mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col pb-2;
+  }
+
+  .unified-race-board {
+    @apply relative flex min-h-0 flex-1 flex-col overflow-hidden border border-line bg-surface-track shadow-panel;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--surface-raised) / 0.72),
+      hsl(var(--background) / 0.96)
+    );
+  }
+
+  .race-event-info-unified {
+    @apply flex w-full shrink-0 flex-col gap-2.5 overflow-y-auto border-b border-line p-4 lg:w-[280px] lg:border-b-0 lg:border-r;
+  }
+
+  .race-event-info-unified-right {
+    @apply lg:border-l lg:border-r-0;
+  }
+
+  /* Wipe Transition Animations */
+  @keyframes wipe-bar-in {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes wipe-bar-out {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes wipe-logo-in {
+    0% {
+      transform: translate3d(100vw, -50%, 0);
+    }
+    100% {
+      transform: translate3d(-50%, -50%, 0);
+    }
+  }
+
+  @keyframes wipe-logo-out {
+    0% {
+      transform: translate3d(-50%, -50%, 0);
+    }
+    100% {
+      transform: translate3d(-150vw, -50%, 0);
+    }
+  }
+
+  .animate-wipe-in {
+    animation: wipe-bar-in 0.54s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--bar-idx) * 0.04s) both;
+    will-change: transform;
+  }
+
+  .animate-wipe-out {
+    animation: wipe-bar-out 0.54s cubic-bezier(0.64, 0, 0.36, 1) calc(var(--bar-idx) * 0.04s) both;
+    will-change: transform;
+  }
+
+  .animate-wipe-logo-in {
+    animation: wipe-logo-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform;
+  }
+
+  .animate-wipe-logo-out {
+    animation: wipe-logo-out 0.7s cubic-bezier(0.64, 0, 0.36, 1) both;
+    will-change: transform;
+  }
+
+  .broadcast-wipe-bar {
+    min-height: 20.2%;
+  }
+
+  .starting-grid-title {
+    @apply flex shrink-0 items-center justify-between gap-3 border-b border-line/70 px-4 py-2.5 font-mono text-muted-foreground;
+  }
+
+  .race-results-title {
+    @apply flex shrink-0 items-center justify-between gap-3 border-b border-line/70 px-4 py-3 font-mono text-foreground;
+  }
+
+  .starting-grid-title span:first-child {
+    @apply text-foreground;
+  }
+
+  .race-event-heading {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+
+  .race-event-title {
+    @apply truncate text-[13px] font-black uppercase leading-none tracking-[0.16em] text-foreground;
+  }
+
+  .race-event-mode {
+    @apply text-[11px] font-black uppercase tracking-[0.24em] text-muted-foreground;
+  }
+
+  .race-event-shutter {
+    @apply mx-4 mt-3 grid shrink-0 gap-2 border border-line bg-background/80 px-3 py-2 shadow-insetLine sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center;
+  }
+
+  .race-event-shutter-status {
+    @apply font-mono text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .race-event-shutter-main {
+    @apply mt-1 font-mono text-sm font-black uppercase leading-none text-foreground;
+  }
+
+  .race-event-shutter-detail {
+    @apply font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-primary;
+  }
+
+  .race-event-content {
+    @apply grid min-h-0 flex-1 gap-3 px-4 pb-3 pt-3 lg:grid-cols-[240px_minmax(0,1fr)];
+  }
+
+  .race-event-info {
+    @apply min-h-0 border border-line bg-background/75 p-3 shadow-insetLine;
+  }
+
+  .race-event-info-grid {
+    @apply flex flex-col gap-2.5 bg-surface-track p-4;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--surface-raised) / 0.44),
+      hsl(var(--surface-track) / 0.98)
+    );
+  }
+
+  .race-event-info-title {
+    @apply font-mono text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .race-info-strip {
+    @apply flex min-h-8 items-center gap-3 border border-line bg-secondary px-4 font-mono text-xs font-black uppercase tracking-[0.16em];
+  }
+
+  .race-info-strip span,
+  .race-info-box span,
+  .race-player-car span {
+    @apply text-muted-foreground;
+  }
+
+  .race-info-strip strong {
+    @apply text-foreground;
+  }
+
+  .race-info-box {
+    @apply grid min-h-[56px] content-center border border-line bg-background/30 px-4 font-mono uppercase;
+  }
+
+  .race-info-box span {
+    @apply text-[10px] font-black tracking-[0.22em];
+  }
+
+  .race-info-box strong {
+    @apply mt-2 text-xl font-black leading-none text-foreground;
+  }
+
+  .race-player-car {
+    @apply flex min-h-[52px] items-center justify-between gap-3 border px-4 font-mono uppercase;
+    background: color-mix(in srgb, var(--team-accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--team-accent) 52%, hsl(var(--line)));
+  }
+
+  .race-player-car span {
+    @apply text-[10px] font-black tracking-[0.22em];
+  }
+
+  .race-player-car strong {
+    @apply block text-sm font-black leading-none text-foreground;
+  }
+
+  .race-player-car b {
+    @apply border px-3 py-2 text-[11px] font-black tracking-[0.18em];
+    background: color-mix(in srgb, var(--team-accent) 16%, transparent);
+    border-color: color-mix(in srgb, var(--team-accent) 62%, transparent);
+    color: var(--team-accent);
+  }
+
+  .race-event-info-list {
+    @apply mt-4 grid gap-3;
+  }
+
+  .race-event-info-item {
+    @apply border-l-2 border-l-primary/70 pl-3;
+  }
+
+  .race-event-info-label {
+    @apply font-mono text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .race-event-info-value {
+    @apply mt-1 text-sm font-black uppercase leading-tight text-foreground;
+  }
+
+  .race-results-secondary-action {
+    @apply flex shrink-0 items-center gap-2 border border-line bg-background px-3 py-1.5 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground shadow-insetLine transition hover:border-primary hover:text-primary;
+  }
+
+  .starting-grid-lane {
+    display: none;
+  }
+
+  .starting-grid-lane-left {
+    left: 49%;
+  }
+
+  .starting-grid-lane-right {
+    right: 49%;
+  }
+
+  .starting-grid-track {
+    @apply relative z-[1] grid min-h-0 flex-1 grid-cols-2 gap-x-7 gap-y-1.5 overflow-y-auto px-4 pb-3 pt-3;
+    grid-auto-flow: row;
+    align-content: start;
+  }
+
+  .starting-grid-slot {
+    @apply relative z-[1] min-h-9 w-[92%] max-w-[490px] justify-self-end border border-line px-2.5 py-1.5 shadow-panel transition duration-200;
+    background: hsl(var(--card));
+    box-shadow: var(--shadow-panel), var(--shadow-inset-line);
+  }
+
+  .starting-grid-slot::before {
+    content: "";
+    display: none;
+  }
+
+  .starting-grid-slot-right {
+    @apply justify-self-start;
+    grid-column: 2;
+    transform: translateY(10px);
+  }
+
+  .starting-grid-slot-right::before {
+    display: none;
+  }
+
+  .starting-grid-slot-player {
+    border-color: color-mix(in srgb, var(--team-accent) 68%, hsl(var(--line)));
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--team-accent) 24%, transparent),
+        hsl(var(--card)) 58%
+      ),
+      hsl(var(--card));
+    box-shadow:
+      inset 3px 0 0 var(--team-accent),
+      var(--shadow-panel),
+      var(--shadow-inset-line);
+  }
+
+  .starting-grid-position {
+    @apply w-7 shrink-0 font-mono text-xl font-black leading-none text-foreground;
+  }
+
+  .starting-grid-slot:first-of-type .starting-grid-position {
+    @apply text-primary;
+  }
+
+  .starting-grid-compound {
+    @apply flex h-4 w-4 shrink-0 items-center justify-center rounded-full border bg-background font-mono text-[9px] font-black;
+  }
+
+  .race-results-tables {
+    @apply relative z-[1] grid min-h-0 grid-cols-2 gap-3 overflow-hidden;
+  }
+
+  .race-results-table-wrap {
+    @apply overflow-hidden border border-line bg-background/50 shadow-insetLine;
+  }
+
+  .race-results-table {
+    @apply w-full border-collapse text-left font-mono text-[11px] font-bold uppercase tracking-[0.04em] text-muted-foreground;
+  }
+
+  .race-results-table caption {
+    @apply sr-only;
+  }
+
+  .race-results-table thead {
+    @apply border-b border-line bg-background/80 text-[9px] text-muted-foreground;
+  }
+
+  .race-results-table th {
+    @apply px-3 py-2 font-black tracking-[0.14em];
+  }
+
+  .race-results-table th:first-child,
+  .race-results-table td:first-child {
+    @apply w-12;
+  }
+
+  .race-results-table th:nth-child(2),
+  .race-results-table td:nth-child(2) {
+    @apply w-14 text-center;
+  }
+
+  .race-results-table th:nth-child(4),
+  .race-results-table td:nth-child(4),
+  .race-results-table th:nth-child(5),
+  .race-results-table td:nth-child(5),
+  .race-results-table th:nth-child(6),
+  .race-results-table td:nth-child(6) {
+    @apply text-right;
+  }
+
+  .race-results-content {
+    @apply min-h-0 flex-1 px-4 pb-3 pt-3;
+  }
+
+  .race-results-table tbody tr {
+    @apply border-b border-line bg-card transition;
+    box-shadow: var(--shadow-inset-line);
+  }
+
+  .race-results-table tbody tr:nth-child(even) {
+    background: hsl(var(--surface) / 0.98);
+  }
+
+  .race-results-table td {
+    @apply px-3 py-2 align-middle;
+  }
+
+  .race-results-player-row {
+    @apply border-primary/60;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--team-accent) 20%, transparent),
+        hsl(var(--card)) 45%
+      ),
+      hsl(var(--card)) !important;
+    box-shadow:
+      inset 3px 0 0 var(--team-accent),
+      var(--shadow-inset-line) !important;
+  }
+
+  .race-results-winner-row .race-results-position,
+  .race-results-winner-row .race-results-points {
+    @apply text-primary;
+  }
+
+  .race-results-position {
+    @apply font-mono text-lg font-black leading-none text-foreground;
+  }
+
+  .race-results-driver {
+    @apply flex min-w-0 items-center gap-2 text-[13px] font-black text-foreground;
+  }
+
+  .race-results-delta {
+    @apply inline-flex items-center justify-center gap-1 font-mono text-[10px] font-black leading-none;
+  }
+
+  .race-results-delta-up {
+    @apply text-success;
+  }
+
+  .race-results-delta-down {
+    @apply text-danger;
+  }
+
+  .race-results-delta-flat {
+    @apply mx-auto block h-px w-2 bg-muted-foreground/40;
+  }
+
+  .row-team-accent {
+    border-color: color-mix(in srgb, var(--team-accent) 60%, white 15%) !important;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--team-accent) 24%, white 10%),
+      transparent 50%
+    ) !important;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--team-accent) 82%, white 12%),
+      inset 3px 0 0 color-mix(in srgb, var(--team-accent) 100%, white 20%),
+      var(--shadow-inset-line) !important;
+  }
+
+  .race-results-content tbody tr.row-team-accent:first-child td {
+    border-top: 1px solid color-mix(in srgb, var(--team-accent) 82%, white 12%);
+  }
+
+  .race-results-points {
+    @apply inline-flex min-w-7 justify-end font-mono text-sm font-black text-foreground;
+  }
+
+  @media (max-width: 767px) {
+    .starting-grid-track {
+      @apply grid-cols-1 gap-y-1 overflow-y-auto;
+    }
+
+    .starting-grid-slot,
+    .starting-grid-slot-right {
+      grid-column: 1;
+      transform: none;
+    }
+
+    .starting-grid-slot::before {
+      display: none;
+    }
+
+    .race-results-tables {
+      @apply grid-cols-1 overflow-auto;
+    }
+
+    .race-results-table {
+      min-width: 720px;
+    }
+
+    .race-event-content {
+      @apply grid-cols-1 overflow-auto;
+    }
+  }
+}

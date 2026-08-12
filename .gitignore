@@ -1,0 +1,55 @@
+# Dependencies and generated application output
+node_modules/
+dist/
+build/
+generated/
+coverage/
+htmlcov/
+playwright-report/
+test-results/
+.vite/
+.cache/
+
+# Python environments, bytecode and test/tool caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest-basetemp-*/
+.ruff_cache/
+.mypy_cache/
+.coverage
+*.egg-info/
+
+# Local configuration. Versioned examples remain visible.
+.env
+.env.*
+!.env.example
+!.env.*.example
+deploy/.env
+deploy/.env.*
+!deploy/.env.example
+!deploy/.env.*.example
+deploy/tls/local/
+deploy/tls/production/
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs and private TLS material
+*.log
+uvicorn-readiness*.log
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Local PostgreSQL migration backups (binary dumps and verification manifests)
+backups/postgres/

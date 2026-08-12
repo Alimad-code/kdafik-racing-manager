@@ -1,0 +1,23 @@
+# Dependencies and generated frontend output
+node_modules/
+dist/
+build/
+tests/
+coverage/
+.vite/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Local environment files. Keep examples in source control.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local editor and diagnostic files
+.idea/
+.vscode/
+*.iml
+*.log
+*-audit.png

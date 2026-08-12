@@ -1,0 +1,196 @@
+worker_processes auto;
+pid /tmp/nginx.pid;
+
+# Critical startup/TLS failures remain visible; ordinary request failures are below this level.
+error_log /dev/stderr crit;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    server_tokens off;
+
+    # Intentionally logs the normalized path only: query strings may hold one-time tokens.
+    # No cookies, authorization headers, bodies, referrers, user agents, or client IP addresses are logged.
+    log_format privacy '$time_iso8601 "$request_method $uri $server_protocol" $status $body_bytes_sent';
+    access_log /dev/stdout privacy;
+
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
+    # Source-address keys exist only in Nginx's volatile shared memory. They are not logged
+    # and are not sent upstream. These are abuse controls, not DDoS protection.
+    limit_req_zone $binary_remote_addr zone=auth_login_per_source:10m rate=12r/m;
+    limit_req_zone $binary_remote_addr zone=auth_register_per_source:10m rate=4r/m;
+    # Verification resend and password reset requests share one budget so alternating paths
+    # cannot double the email-delivery allowance.
+    limit_req_zone $binary_remote_addr zone=auth_email_delivery_per_source:10m rate=6r/m;
+    limit_req_zone $binary_remote_addr zone=auth_token_action_per_source:10m rate=12r/m;
+    limit_req_zone $binary_remote_addr zone=ws_ticket_per_source:10m rate=20r/m;
+    # This key is held only in volatile shared memory for the duration of a
+    # connection; it is neither logged nor passed to the application.
+    limit_conn_zone $binary_remote_addr zone=ws_live_per_source:10m;
+    limit_req_status 429;
+    limit_conn_status 429;
+
+    upstream kdafik_backend {
+        server backend:8000;
+        keepalive 16;
+    }
+
+    # Unknown HTTP hosts fail closed. The loopback-only exact path is for the
+    # container health check and never redirects to TLS.
+    server {
+        listen 8080 default_server;
+        server_name _;
+
+        location = /internal-health {
+            access_log off;
+            if ($remote_addr != 127.0.0.1) {
+                return 444;
+            }
+            return 204;
+        }
+
+        location / {
+            return 444;
+        }
+    }
+
+    server {
+        listen 8080;
+        server_name ${PUBLIC_HOST};
+
+        location / {
+            return 308 https://${PUBLIC_HOST}$request_uri;
+        }
+    }
+
+    # Unknown SNI is rejected during TLS negotiation; an unknown HTTP Host after a
+    # valid canonical SNI is also rejected by the default request handler.
+    server {
+        listen 8443 ssl default_server;
+        server_name _;
+        ssl_reject_handshake on;
+        return 444;
+    }
+
+    server {
+        listen 8443 ssl;
+        server_name ${PUBLIC_HOST};
+
+        ssl_certificate /run/tls/fullchain.pem;
+        ssl_certificate_key /run/tls/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_session_timeout 1d;
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_tickets off;
+
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=(), usb=()" always;
+        add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'" always;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Exact public endpoints receive a bounded burst before a JSON 429 response. The
+        # include contains the same privacy-preserving upstream configuration as /api/.
+        location = /api/v1/auth/login {
+            limit_req zone=auth_login_per_source burst=6 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/auth/register {
+            limit_req zone=auth_register_per_source burst=3 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/auth/registration/resend {
+            limit_req zone=auth_email_delivery_per_source burst=3 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/auth/registration/confirm {
+            limit_req zone=auth_token_action_per_source burst=6 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/auth/email/resend-verification {
+            limit_req zone=auth_email_delivery_per_source burst=3 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/auth/password/forgot {
+            limit_req zone=auth_email_delivery_per_source burst=3 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/auth/email/verify {
+            limit_req zone=auth_token_action_per_source burst=6 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/auth/password/reset {
+            limit_req zone=auth_token_action_per_source burst=6 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location = /api/v1/ws/ticket {
+            limit_req zone=ws_ticket_per_source burst=10 nodelay;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        # The exact ticket route above wins first. Ten simultaneous race sockets
+        # leave room for users sharing a university/mobile NAT while bounding a
+        # single source that holds connections open. This is not DDoS protection.
+        location ~ ^/api/v1/ws/seasons/[^/]+/stages/[^/]+/race$ {
+            limit_conn ws_live_per_source 10;
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        location /api/ {
+            include /etc/nginx/includes/backend-proxy.conf;
+        }
+
+        # limit_req returns this local response. Retry-After is intentionally conservative:
+        # Nginx's leaky-bucket delay depends on each zone's rate and burst.
+        error_page 429 = @rate_limited;
+        location @rate_limited {
+            default_type application/json;
+            add_header Retry-After "60" always;
+            add_header Cache-Control "no-store" always;
+            return 429 '{"code":"RATE_LIMITED","message":"Too many requests. Try again later.","details":{}}';
+        }
+
+        location = /index.html {
+            add_header Cache-Control "no-cache" always;
+            try_files $uri =404;
+        }
+
+        location ~* \.(?:css|js|mjs|svg|png|jpg|jpeg|gif|webp|ico|woff2?)$ {
+            expires 7d;
+            add_header Cache-Control "public, max-age=604800, immutable" always;
+            try_files $uri =404;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}

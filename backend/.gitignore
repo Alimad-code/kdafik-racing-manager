@@ -1,0 +1,28 @@
+# Python environments, bytecode and test/tool caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest-basetemp-*/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Generated output and local configuration
+build/
+dist/
+tests/
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.log
+*.gguf
+
+# Local editor files
+.idea/
+.vscode/
+*.iml

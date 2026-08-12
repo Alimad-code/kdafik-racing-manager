@@ -1,0 +1,25 @@
+from decimal import Decimal
+from uuid import UUID
+
+DEV_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+MVP_STAGE_COUNT = 12
+STARTING_BUDGET_MILLIONS = Decimal("130.00")
+REPAIR_RESERVE_MULTIPLIER = Decimal("4")
+FULL_TEAM_SETUP_CAR_COUNT = Decimal("2")
+FULL_TEAM_SETUPS_PER_STAGE = Decimal("1.5")
+SEASON_SETUP_CHANGE_COUNT = (
+    Decimal(MVP_STAGE_COUNT) * FULL_TEAM_SETUPS_PER_STAGE * FULL_TEAM_SETUP_CAR_COUNT
+)
+
+F1_POINTS_BY_POSITION = {
+    1: 25,
+    2: 18,
+    3: 15,
+    4: 12,
+    5: 10,
+    6: 8,
+    7: 6,
+    8: 4,
+    9: 2,
+    10: 1,
+}

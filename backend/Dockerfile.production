@@ -1,0 +1,40 @@
+# Build wheels separately so the runtime image contains no compiler toolchain or build cache.
+FROM python:3.12.11-slim-bookworm AS builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /build
+COPY backend/pyproject.toml ./
+COPY backend/app ./app
+COPY backend/alembic ./alembic
+COPY backend/alembic.ini ./
+
+RUN python -m pip wheel --wheel-dir /wheels .
+
+FROM python:3.12.11-slim-bookworm AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN groupadd --system kdafik \
+    && useradd --system --gid kdafik --create-home kdafik
+
+WORKDIR /app
+COPY --from=builder /wheels /wheels
+RUN python -m pip install --no-cache-dir /wheels/* && rm -rf /wheels
+COPY --chown=kdafik:kdafik backend/app ./app
+COPY --chown=kdafik:kdafik backend/alembic ./alembic
+COPY --chown=kdafik:kdafik backend/alembic.ini ./
+COPY --chown=kdafik:kdafik backend/legal_manifest.json ./legal_manifest.json
+COPY --chown=kdafik:kdafik docs/legal ./docs/legal
+COPY --chown=kdafik:kdafik backend/seed_legal.py ./seed_legal.py
+
+USER kdafik
+EXPOSE 8000
+
+# LLM dependencies and model files are not part of the ordinary production install.
+# Uvicorn access logging is disabled because ticket and email-action URLs contain one-time query tokens.
+# Nginx provides the deliberately query-free operational access log at the public boundary.
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*", "--no-access-log"]

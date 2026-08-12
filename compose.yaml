@@ -1,0 +1,129 @@
+name: kdafik-racing-manager
+
+x-backend-build: &backend-build
+  image: kdafik-racing-manager-backend
+  build:
+    context: .
+    dockerfile: backend/Dockerfile.production
+
+services:
+  db:
+    profiles: [local]
+    image: postgres:16.10-alpine
+    env_file:
+      - ./deploy/.env.${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}
+    environment:
+      POSTGRES_DB: kdafik_racing_manager
+      POSTGRES_USER: kdafik
+    volumes:
+      - local_postgres_data:/var/lib/postgresql/data
+    networks:
+      - application
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kdafik -d kdafik_racing_manager"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  migrate:
+    image: kdafik-racing-manager-backend
+    env_file:
+      - ./deploy/.env.${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}
+    environment:
+      ENVIRONMENT: ${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}
+    command:
+      [
+        "sh",
+        "-c",
+        "set -eu; python -m alembic upgrade head; python seed_legal.py; python -m app.seed.mvp --quiet",
+      ]
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    networks:
+      - application
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  backend:
+    <<: *backend-build
+    env_file:
+      - ./deploy/.env.${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}
+    environment:
+      ENVIRONMENT: ${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}
+    expose:
+      - "8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - application
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import os, urllib.request; request = urllib.request.Request(''http://127.0.0.1:8000/api/v1/health'', headers={''Host'': os.environ[''TRUSTED_HOSTS''].split('','')[0]}); urllib.request.urlopen(request, timeout=3).read()"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+    env_file:
+      - ./deploy/.env.${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - ./deploy/tls/${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}:/run/tls:ro
+    networks:
+      - application
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8080/internal-health || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  application:
+    driver: bridge
+
+volumes:
+  local_postgres_data:
