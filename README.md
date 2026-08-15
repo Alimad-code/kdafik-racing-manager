@@ -2,9 +2,21 @@
 
 Kdafik Racing Manager — одиночный менеджер формульного сезона: соберите команду, управляйте бюджетом и проведите её через чемпионат.
 
-## Запуск
+## Локальная разработка
 
-Для локального запуска откройте PowerShell в корне репозитория.
+Одна команда запускает PostgreSQL, миграции, FastAPI и Vite dev-server в Docker:
+
+```powershell
+docker compose up --build -d
+```
+
+Откройте приложение на [http://localhost:5173](http://localhost:5173). Vite
+проксирует запросы `/api` и WebSocket-соединения на backend. Документация FastAPI
+доступна напрямую на [http://localhost:8000/docs](http://localhost:8000/docs).
+
+## HTTPS-режим в Docker
+
+Чтобы запустить production-подобный HTTPS-режим, откройте PowerShell в корне репозитория.
 
 1. Запустите Docker Desktop.
 2. Создайте `.env` из `.env.example`, затем `deploy/.env.local` из `deploy/.env.local.example`. Единственный переключатель окружения — `APP_ENVIRONMENT=local`; строку `COMPOSE_PROFILES=${APP_ENVIRONMENT}` не меняйте. Задайте `POSTGRES_PASSWORD` и JWT-секрет длиной не менее 32 символов. Если меняете пароль, обновите его и в `DATABASE_URL`.
@@ -12,7 +24,7 @@ Kdafik Racing Manager — одиночный менеджер формульно
 4. Запустите стек:
 
 ```powershell
-docker compose up --build -d
+docker compose -f compose.yaml -f compose.production.yaml --profile production up --build -d
 ```
 
 После того как сервисы станут healthy, откройте `https://kdafik.localhost`. Предупреждение о локальном self-signed сертификате ожидаемо.

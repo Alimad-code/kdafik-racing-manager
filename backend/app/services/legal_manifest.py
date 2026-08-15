@@ -2,7 +2,7 @@
 
 The Markdown files in ``docs/legal`` are the single source of legal text.  The
 manifest binds each public route to one of those files and its SHA-256 digest.
-Draft material is deliberately usable only outside production.
+Development material is deliberately usable only outside production.
 """
 
 from __future__ import annotations
@@ -132,7 +132,7 @@ def validate_runtime_manifest(
             raise ValueError(f"legal content hash mismatch: {item['kind']}")
         if environment == "production" and (
             item["isDraft"]
-            or "DRAFT" in content.upper()
+            or "DEV" in content.upper()
             or "НЕ ФИНАЛ" in content.upper()
             or _PLACEHOLDER.search(content) is not None
         ):

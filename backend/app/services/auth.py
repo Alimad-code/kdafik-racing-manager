@@ -64,7 +64,6 @@ class AuthService:
 
     def register(self, payload: RegisterRequest) -> None:
         try:
-            self._require_email_sender()
             email = self._normalize_email(payload.email)
             display_name = self._normalize_display_name(payload.display_name)
             display_name_normalized = self._normalize_display_name_for_lookup(display_name)
@@ -74,26 +73,47 @@ class AuthService:
                     "Display name is required.",
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 )
+            if self.repository.get_user_by_email(email) is not None:
+                raise DomainError(
+                    ErrorCode.EMAIL_ALREADY_REGISTERED,
+                    "Email is already registered.",
+                    status_code=status.HTTP_409_CONFLICT,
+                    details={"email": email},
+                )
+            if (
+                self.repository.get_user_by_display_name_normalized(display_name_normalized)
+                is not None
+            ):
+                raise DomainError(
+                    ErrorCode.DISPLAY_NAME_ALREADY_REGISTERED,
+                    "Display name is already registered.",
+                    status_code=status.HTTP_409_CONFLICT,
+                    details={"displayName": display_name},
+                )
+
+            self._require_email_sender()
             documents = validate_acceptances(
                 self.repository.session, payload.legal_acceptances, require_registration=True
             )
-            existing = self.repository.get_user_by_email(
-                email
-            ) or self.repository.get_user_by_display_name_normalized(display_name_normalized)
-            pending = self.repository.get_pending_registration_by_email(
-                email
-            ) or self.repository.get_pending_registration_by_display_name_normalized(
-                display_name_normalized
-            )
-            if existing is not None:
-                self.repository.commit()
-                return
-            if pending is not None:
-                if self._registration_can_resend(pending, datetime.now(UTC)):
-                    self._send_registration_confirmation(pending)
+            pending_by_email = self.repository.get_pending_registration_by_email(email)
+            if pending_by_email is not None:
+                if self._registration_can_resend(pending_by_email, datetime.now(UTC)):
+                    self._send_registration_confirmation(pending_by_email)
                 else:
                     self.repository.commit()
                 return
+            if (
+                self.repository.get_pending_registration_by_display_name_normalized(
+                    display_name_normalized
+                )
+                is not None
+            ):
+                raise DomainError(
+                    ErrorCode.DISPLAY_NAME_ALREADY_REGISTERED,
+                    "Display name is already registered.",
+                    status_code=status.HTTP_409_CONFLICT,
+                    details={"displayName": display_name},
+                )
 
             now = datetime.now(UTC)
             token = generate_refresh_token()

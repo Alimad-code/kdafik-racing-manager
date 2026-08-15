@@ -1,5 +1,31 @@
 # Local: запуск на своей машине
 
+## Разработка через Vite
+
+Для разработки весь стек запускается одной командой Docker Compose. Фронтенд
+работает как Vite dev-server по HTTP на фиксированном адресе
+`http://localhost:5173`; исходный код смонтирован в контейнер, поэтому изменения
+подхватываются без пересборки. Backend публикуется только на loopback-интерфейсе,
+поэтому API и Swagger доступны с этой же машины:
+
+```powershell
+docker compose up --build -d
+```
+
+Откройте:
+
+- `http://localhost:5173` — приложение;
+- `http://localhost:8000/docs` — Swagger UI FastAPI;
+- `http://localhost:8000/api/v1/health` — проверка API.
+
+В контейнере Vite проксирует `/api` и WebSocket-запросы на `backend:8000`,
+поэтому во фронтенде не требуется указывать URL backend. Для запуска Vite вне
+Docker сохранён `npm run dev`: он использует `127.0.0.1:8000`. HTTP допустим
+только для локального окружения: `REFRESH_COOKIE_SECURE=false` задан
+исключительно в `deploy/.env.local`.
+
+## HTTPS-режим в Docker
+
 Локальный пользовательский режим использует production-сборки, PostgreSQL и HTTPS
 на `https://kdafik.localhost`. Это не dev-server.
 
@@ -47,9 +73,9 @@ notepad deploy\.env.local
 
 ```powershell
 docker compose config --quiet
-docker compose up --build -d
+docker compose -f compose.yaml -f compose.production.yaml --profile production up --build -d
 docker compose ps
-docker compose logs -f migrate backend web
+docker compose -f compose.yaml -f compose.production.yaml --profile production logs -f migrate backend web
 ```
 
 Compose запускает `db`, одноразовый `migrate`, `backend` и `web`. `migrate`

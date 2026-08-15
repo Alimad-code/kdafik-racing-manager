@@ -47,9 +47,9 @@ deploy/tls/production/privkey.pem
 
 ```sh
 docker compose config --quiet
-docker compose up --build -d
+docker compose -f compose.yaml -f compose.production.yaml --profile production up --build -d
 docker compose ps
-docker compose logs --tail=200 migrate backend web
+docker compose -f compose.yaml -f compose.production.yaml --profile production logs --tail=200 migrate backend web
 curl --fail https://<public-domain>/api/v1/health
 ```
 

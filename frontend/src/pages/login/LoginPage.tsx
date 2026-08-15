@@ -138,7 +138,6 @@ export function LoginPage() {
     try {
       await resendVerification({ email: emailValue.trim() });
     } catch {
-      // The result remains deliberately generic to avoid account enumeration.
     } finally {
       setResending(false);
       setResendAvailableAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
@@ -215,14 +214,6 @@ export function LoginPage() {
             <span className="text-[11px] font-black uppercase tracking-[0.2em] sm:text-xs sm:tracking-[0.28em]">
               Kdafik Racing Manager
             </span>
-          </div>
-          <div className="mt-5">
-            <h1 className="text-3xl font-black uppercase leading-none tracking-tight sm:text-4xl">
-              {mode === "register" ? "Регистрация команды" : "Вход в гоночный штаб"}
-            </h1>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-              Войдите в существующий профиль или создайте новый, чтобы продолжить сезон.
-            </p>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-2 border border-border bg-background p-1">
             {(["login", "register"] as const).map((item) => (
@@ -419,7 +410,6 @@ export function LoginPage() {
                 disabled={mode === "register" ? isRegisterDisabled : isSubmitting}
                 type="submit"
               >
-                <LockKeyhole className="mr-2 size-4" />
                 {isSubmitting
                   ? "Проверяем доступ..."
                   : mode === "register"
