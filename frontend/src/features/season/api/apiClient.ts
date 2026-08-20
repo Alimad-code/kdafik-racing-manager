@@ -13,7 +13,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   DUPLICATE_DRIVER: "The same driver cannot be selected twice.",
   EMAIL_ALREADY_REGISTERED: "Email is already registered.",
   EMAIL_NOT_VERIFIED: "Подтвердите email, прежде чем входить.",
-  INVALID_EMAIL_ACTION_TOKEN: "Ссылка недействительна или её срок действия истёк.",
+  INVALID_EMAIL_ACTION_CODE: "Код недействителен или срок его действия истёк.",
   LEGAL_DOCUMENTS_UNAVAILABLE:
     "Не удалось загрузить обязательные документы. Попробуйте ещё раз позже.",
   INVALID_LEGAL_ACCEPTANCE: "Необходимо подтвердить все актуальные документы.",

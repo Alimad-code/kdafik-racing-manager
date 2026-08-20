@@ -1,60 +1,49 @@
 # Production: публичный запуск
 
-Эта инструкция не является разрешением на публикацию. Production намеренно
-fail-closed, пока legal manifest содержит DRAFT-тексты или placeholders. Нельзя
-отключать эту проверку; сначала документы должны пройти проверку российского
-юриста и получить финальные версии, даты и SHA-256.
+Эта инструкция не является разрешением на публикацию. Production fail-closed,
+пока legal manifest содержит DRAFT-тексты или placeholders: сначала нужны
+финальные документы, даты, SHA-256 и проверка российского юриста.
 
-Локальный запуск описан в [local.md](local.md).
+Production использует Nginx как HTTPS edge с security headers, privacy logging
+и rate limits для регистрации, повторной отправки кода, подтверждения,
+восстановления и сброса пароля. Локальная разработка использует только Vite:
+см. [local.md](local.md).
 
-## Подготовка
+На deployment host подготовьте Docker Engine, DNS, TLS-сертификат и external
+managed PostgreSQL с защищённым соединением. Создайте root `.env` из
+`.env.example` с `APP_ENVIRONMENT=production`, затем
+`deploy/.env.production` из примера. Заполните домен, external `DATABASE_URL`,
+`AUTH_JWT_SECRET`, CORS/trusted hosts, SMTP-реквизиты и уникальный
+`EMAIL_CODE_SECRET` длиной не менее 32 символов. Не используйте placeholder из
+примера и не коммитьте секреты.
 
-На deployment host подготовьте Docker Engine, DNS и доступ к external Managed
-PostgreSQL. База должна быть доступна только приложению по защищённому
-соединению; localhost и локальная Compose-база для production не подходят.
-
-Создайте root-файл из `.env.example`:
-
-```sh
-cp .env.example .env
-```
-
-Измените только `APP_ENVIRONMENT`; производную строку
-`COMPOSE_PROFILES=${APP_ENVIRONMENT}` оставьте без изменений:
-
-```text
-APP_ENVIRONMENT=production
-COMPOSE_PROFILES=${APP_ENVIRONMENT}
-```
-
-Затем создайте `deploy/.env.production` из `deploy/.env.production.example`.
-Заполните public domain, `DATABASE_URL` external PostgreSQL, `AUTH_JWT_SECRET`,
-CORS/trusted hosts и SMTP-секреты. Оставьте `ENVIRONMENT=production`,
-`DEBUG=false` и `REFRESH_COOKIE_SECURE=true`.
-
-Положите сертификат домена на deployment host:
+Положите сертификат на deployment host:
 
 ```text
 deploy/tls/production/fullchain.pem
 deploy/tls/production/privkey.pem
 ```
 
-Не коммитьте ключи и не копируйте их в `deploy/tls/local/`.
-
-## Запуск
-
-Из корня репозитория:
+Запустите из корня репозитория:
 
 ```sh
-docker compose config --quiet
+docker compose -f compose.yaml -f compose.production.yaml --profile production config --quiet
 docker compose -f compose.yaml -f compose.production.yaml --profile production up --build -d
 docker compose ps
 docker compose -f compose.yaml -f compose.production.yaml --profile production logs --tail=200 migrate backend web
 curl --fail https://<public-domain>/api/v1/health
 ```
 
-`migrate` должен завершиться с кодом 0 до запуска backend. Если legal validation
-не проходит, migrate завершится ошибкой, а backend не стартует.
+`migrate` должен завершиться с кодом 0 до запуска backend. Он выполняет только
+`alembic upgrade head`; `0001_initial_schema` и `0002_initial_data` создают
+схему и initial data (MVP catalog и legal metadata). После squash требуется
+чистая production DB: не применяйте новую двухмиграционную историю к базе от
+предыдущих миграций. Отдельные `seed_legal.py` и `python -m app.seed.mvp`
+остаются только администраторскими утилитами, не частью startup.
+
+Подтверждение email и сброс пароля используют одноразовые коды; письма не
+содержат ссылок с секретами или кодами в URL. Коды подтверждения действуют 15 минут, сброса — 10 минут;
+между отправками действует 60-секундный cooldown.
 
 Для остановки используйте `docker compose down`. Перед обновлением сделайте
 backup external PostgreSQL и проверьте env, legal manifest и healthchecks.

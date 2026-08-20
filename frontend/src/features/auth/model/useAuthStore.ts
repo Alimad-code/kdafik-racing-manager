@@ -6,7 +6,7 @@ import type {
   AuthLoginRequestDto,
   AuthRegisterRequestDto,
   AuthResponseDto,
-  AcceptedResponseDto
+  RegistrationChallengeDto
 } from "@/features/season/api/backendDtos";
 import {
   loginRequest,
@@ -26,7 +26,7 @@ type AuthStoreState = {
   status: AuthStatus;
   user: User | null;
   login: (payload: AuthLoginRequestDto) => Promise<AuthResponseDto>;
-  register: (payload: AuthRegisterRequestDto) => Promise<AcceptedResponseDto>;
+  register: (payload: AuthRegisterRequestDto) => Promise<RegistrationChallengeDto>;
   refresh: () => Promise<AuthResponseDto | null>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;

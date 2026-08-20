@@ -46,13 +46,33 @@ export type AcceptedResponseDto = { accepted: true };
 
 export type EmailRequestDto = { email: string };
 
-export type EmailActionTokenRequestDto = { token: string };
+export type RegistrationChallengeDto = AcceptedResponseDto & {
+  confirmationId: string;
+  maskedEmail: string;
+};
 
-export type RegistrationConfirmationRequestDto = EmailActionTokenRequestDto & {
+export type PasswordResetChallengeDto = AcceptedResponseDto & {
+  resetId: string;
+  maskedEmail: string;
+};
+
+export type RegistrationResendRequestDto = {
+  confirmationId: string;
+};
+
+export type RegistrationConfirmationRequestDto = RegistrationResendRequestDto & {
+  code: string;
   legalAcceptances?: LegalAcceptanceRequestDto[];
 };
 
-export type ResetPasswordRequestDto = EmailActionTokenRequestDto & { newPassword: string };
+export type PasswordResetResendRequestDto = {
+  resetId: string;
+};
+
+export type ResetPasswordRequestDto = PasswordResetResendRequestDto & {
+  code: string;
+  newPassword: string;
+};
 
 export type LegalDocumentKind = "privacy_policy" | "personal_data_consent" | "user_agreement";
 export type PublicLegalDocumentKind = LegalDocumentKind | "cookie_storage_notice";

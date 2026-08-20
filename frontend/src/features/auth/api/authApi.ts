@@ -7,14 +7,17 @@ import type {
   ChangePasswordRequestDto,
   DeleteAccountRequestDto,
   EmailRequestDto,
-  EmailActionTokenRequestDto,
-  RegistrationConfirmationRequestDto,
   LegalAcceptanceRequestDto,
   LegalAcceptanceStatusReadDto,
   LegalDocumentContentReadDto,
   LegalDocumentReadDto,
+  PasswordResetChallengeDto,
+  PasswordResetResendRequestDto,
   PublicLegalDocumentKind,
   ProfileReadDto,
+  RegistrationChallengeDto,
+  RegistrationConfirmationRequestDto,
+  RegistrationResendRequestDto,
   ResetPasswordRequestDto,
   UpdateMeRequestDto,
   UserReadDto
@@ -28,7 +31,7 @@ export function loginRequest(payload: AuthLoginRequestDto) {
 }
 
 export function registerRequest(payload: AuthRegisterRequestDto) {
-  return apiAuthRequest<AcceptedResponseDto>("/auth/register", {
+  return apiAuthRequest<RegistrationChallengeDto>("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload)
   });
@@ -42,15 +45,8 @@ export function getPublicLegalDocument(kind: PublicLegalDocumentKind) {
   return apiAuthRequest<LegalDocumentContentReadDto>(`/legal/documents/${kind}`, { method: "GET" });
 }
 
-export function resendVerification(payload: EmailRequestDto) {
+export function resendVerification(payload: RegistrationResendRequestDto) {
   return apiAuthRequest<AcceptedResponseDto>("/auth/registration/resend", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export function verifyEmail(payload: EmailActionTokenRequestDto) {
-  return apiAuthRequest<AcceptedResponseDto>("/auth/registration/confirm", {
     method: "POST",
     body: JSON.stringify(payload)
   });
@@ -64,7 +60,14 @@ export function confirmRegistration(payload: RegistrationConfirmationRequestDto)
 }
 
 export function forgotPassword(payload: EmailRequestDto) {
-  return apiAuthRequest<AcceptedResponseDto>("/auth/password/forgot", {
+  return apiAuthRequest<PasswordResetChallengeDto>("/auth/password/forgot", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function resendPasswordReset(payload: PasswordResetResendRequestDto) {
+  return apiAuthRequest<AcceptedResponseDto>("/auth/password/resend", {
     method: "POST",
     body: JSON.stringify(payload)
   });

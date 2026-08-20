@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from secrets import token_urlsafe
+from hmac import compare_digest
+from hmac import new as hmac_new
+from secrets import choice, token_urlsafe
 from uuid import UUID, uuid4
 
 import jwt
@@ -16,6 +18,8 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_TYPE = "access"
 JWT_REQUIRED_CLAIMS = ["exp", "iat", "sub", "iss", "aud", "type"]
 REFRESH_TOKEN_BYTES = 48
+EMAIL_CODE_LENGTH = 6
+EMAIL_CODE_ALPHABET = "0123456789"
 
 password_hasher = PasswordHasher()
 
@@ -88,3 +92,23 @@ def generate_refresh_token() -> str:
 
 def hash_refresh_token(refresh_token: str) -> str:
     return sha256(refresh_token.encode("utf-8")).hexdigest()
+
+
+def generate_email_code() -> str:
+    """Generate a cryptographically secure, six-digit email action code."""
+    return "".join(choice(EMAIL_CODE_ALPHABET) for _ in range(EMAIL_CODE_LENGTH))
+
+
+def hash_email_code(settings: Settings, purpose: str, owner_id: UUID, code: str) -> str:
+    """Return a context-bound HMAC digest suitable for database storage."""
+    secret = settings.email_code_secret.get_secret_value().encode("utf-8")
+    message = f"{purpose}:{owner_id}:{code}".encode()
+    return hmac_new(secret, message, sha256).hexdigest()
+
+
+def verify_email_code(
+    settings: Settings, purpose: str, owner_id: UUID, code: str, code_hash: str
+) -> bool:
+    """Verify an email code without exposing it or using timing-sensitive comparison."""
+    expected_hash = hash_email_code(settings, purpose, owner_id, code)
+    return compare_digest(expected_hash, code_hash)

@@ -1,23 +1,30 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { forgotPassword } from "@/features/auth/api/authApi";
 import { ROUTES } from "@/shared/constants/routes";
 import { Button } from "@/shared/ui";
 
 export function ForgotPasswordPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError("");
     setLoading(true);
     try {
-      await forgotPassword({ email: email.trim() });
+      const response = await forgotPassword({ email: email.trim() });
+      navigate(`${ROUTES.resetPassword}/${response.resetId}`, {
+        state: {
+          maskedEmail: response.maskedEmail,
+          resendAvailableAt: Date.now() + 60_000
+        }
+      });
     } catch {
-      /* Generic result prevents enumeration. */
+      setError("Не удалось отправить код. Попробуйте ещё раз позже.");
     } finally {
       setLoading(false);
-      setSubmitted(true);
     }
   }
   return (
@@ -38,13 +45,13 @@ export function ForgotPasswordPage() {
               required
             />
           </label>
-          {submitted ? (
-            <p className="text-sm text-muted-foreground" role="status">
-              Если адрес подходит, письмо для восстановления будет отправлено.
+          {error ? (
+            <p className="text-sm text-danger" role="alert">
+              {error}
             </p>
           ) : null}
           <Button type="submit" disabled={loading}>
-            {loading ? "Отправляем..." : "Отправить ссылку"}
+            {loading ? "Отправляем..." : "Отправить код"}
           </Button>
         </form>
         <Link className="mt-5 inline-block text-sm underline" to={ROUTES.login}>

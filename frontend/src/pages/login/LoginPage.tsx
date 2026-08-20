@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { getActiveLegalDocuments, resendVerification } from "@/features/auth/api/authApi";
+import { getActiveLegalDocuments } from "@/features/auth/api/authApi";
 import { useAuthStore } from "@/features/auth/model/useAuthStore";
 import { ApiError } from "@/features/season/api/apiClient";
 import type { LegalDocumentKind, LegalDocumentReadDto } from "@/features/season/api/backendDtos";
@@ -25,15 +25,6 @@ const EMPTY_CHECKS: LegalChecks = {
   personal_data_consent: false,
   user_agreement: false
 };
-
-const RESEND_COOLDOWN_SECONDS = 60;
-
-function maskEmail(value: string) {
-  const [localPart, domain] = value.split("@");
-  if (!localPart || !domain) return value;
-  if (localPart.length <= 2) return `${localPart[0] ?? ""}*@${domain}`;
-  return `${localPart.slice(0, 2)}${"*".repeat(Math.max(2, localPart.length - 2))}@${domain}`;
-}
 
 function getPostAuthRoute() {
   const activeSeason = seasonRepository.getActiveSeason();
@@ -85,11 +76,6 @@ export function LoginPage() {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [checks, setChecks] = useState<LegalChecks>(EMPTY_CHECKS);
-  const [registrationComplete, setRegistrationComplete] = useState(false);
-  const [resendMessage, setResendMessage] = useState<string | null>(null);
-  const [resending, setResending] = useState(false);
-  const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     resetSessionState();
@@ -118,31 +104,10 @@ export function LoginPage() {
       void loadDocuments();
   }, [mode, documents, documentsError, documentsLoading]);
 
-  useEffect(() => {
-    if (!resendAvailableAt) return;
-    const interval = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(interval);
-  }, [resendAvailableAt]);
-
   function switchMode(nextMode: AuthMode) {
     setMode(nextMode);
     setLocalError(null);
-    setRegistrationComplete(false);
-    setResendMessage(null);
-    setResendAvailableAt(null);
     clearAuthError();
-  }
-
-  async function sendVerification(emailValue: string) {
-    setResending(true);
-    try {
-      await resendVerification({ email: emailValue.trim() });
-    } catch {
-    } finally {
-      setResending(false);
-      setResendAvailableAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
-      setResendMessage("Если адрес подходит, письмо с подтверждением будет отправлено.");
-    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -171,7 +136,7 @@ export function LoginPage() {
     }
     try {
       if (mode === "register" && documents) {
-        await register({
+        const challenge = await register({
           displayName: trimmedDisplayName,
           email: trimmedLogin,
           password,
@@ -181,9 +146,12 @@ export function LoginPage() {
             accepted: checks[document.kind]
           }))
         });
-        setRegistrationComplete(true);
-        setPassword("");
-        setResendAvailableAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+        navigate(`${ROUTES.verifyEmail}/${challenge.confirmationId}`, {
+          state: {
+            maskedEmail: challenge.maskedEmail,
+            resendAvailableAt: Date.now() + 60_000
+          }
+        });
         return;
       }
       await login({ login: trimmedLogin, password });
@@ -191,7 +159,7 @@ export function LoginPage() {
       navigate(getPostAuthRoute(), { replace: true });
     } catch (error) {
       if (error instanceof ApiError && error.code === "EMAIL_NOT_VERIFIED") {
-        setLocalError("Подтвердите email. Можно повторно запросить письмо ниже.");
+        setLocalError("Завершите регистрацию по коду из письма.");
       }
     }
   }
@@ -200,11 +168,6 @@ export function LoginPage() {
   const isSubmitting = authIsLoading || authStatus === "checking";
   const isRegisterDisabled =
     isSubmitting || !documents || documentsLoading || REQUIRED_KINDS.some((kind) => !checks[kind]);
-  const resendRemainingSeconds = resendAvailableAt
-    ? Math.max(0, Math.ceil((resendAvailableAt - now) / 1000))
-    : 0;
-  const isResendCoolingDown = resendRemainingSeconds > 0;
-
   return (
     <main className="flex min-h-screen flex-col text-foreground">
       <section className="flex flex-1 items-center justify-center overflow-hidden px-3 py-4 sm:px-6 sm:py-6">
@@ -232,192 +195,133 @@ export function LoginPage() {
               </button>
             ))}
           </div>
-          {registrationComplete ? (
-            <div className="mt-6 grid gap-4" role="status">
-              <p className="text-sm leading-6">
-                Письмо отправлено на <strong>{maskEmail(email)}</strong>. Ссылка действует 24 часа;
-                для входа необходимо подтвердить адрес из письма.
-              </p>
-              <Button
-                type="button"
-                disabled={resending || isResendCoolingDown}
-                onClick={() => void sendVerification(email)}
-              >
-                {resending
-                  ? "Отправляем..."
-                  : isResendCoolingDown
-                    ? `Повторная отправка через ${resendRemainingSeconds} с`
-                    : "Отправить письмо повторно"}
-              </Button>
-              {resendMessage ? (
-                <p className="text-sm text-muted-foreground">{resendMessage}</p>
-              ) : null}
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="secondary"
-                  type="button"
-                  onClick={() => setRegistrationComplete(false)}
-                >
-                  Изменить email
-                </Button>
-                <Button variant="secondary" type="button" onClick={() => switchMode("login")}>
-                  Перейти ко входу
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
-              {mode === "register" ? (
-                <label className="grid gap-2" htmlFor="auth-display-name">
-                  <span className="metadata-label">Имя профиля</span>
-                  <input
-                    id="auth-display-name"
-                    className="min-h-11 border border-input bg-background px-3 font-mono text-sm font-bold text-foreground outline-none transition focus:border-primary"
-                    autoComplete="nickname"
-                    name="displayName"
-                    type="text"
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                  />
-                </label>
-              ) : null}
-              <label className="grid gap-2" htmlFor="auth-login">
-                <span className="metadata-label">
-                  {mode === "register" ? "Email" : "Email или имя профиля"}
-                </span>
+          <h1 className="mt-6 text-3xl font-black uppercase leading-none tracking-tight sm:text-4xl">
+            {mode === "login" ? "Вход в гоночный штаб" : "Регистрация профиля"}
+          </h1>
+          <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
+            {mode === "register" ? (
+              <label className="grid gap-2" htmlFor="auth-display-name">
+                <span className="metadata-label">Имя профиля</span>
                 <input
-                  id="auth-login"
+                  id="auth-display-name"
                   className="min-h-11 border border-input bg-background px-3 font-mono text-sm font-bold text-foreground outline-none transition focus:border-primary"
-                  autoComplete={mode === "register" ? "email" : "username"}
-                  name={mode === "register" ? "email" : "login"}
-                  type={mode === "register" ? "email" : "text"}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="nickname"
+                  name="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
                 />
               </label>
-              <div className="grid gap-2">
-                <label className="metadata-label" htmlFor="auth-password">
-                  Пароль
-                </label>
-                <div className="relative">
-                  <input
-                    id="auth-password"
-                    className="min-h-11 w-full border border-input bg-background px-3 pr-12 font-mono text-sm font-bold text-foreground outline-none transition focus:border-primary"
-                    autoComplete={mode === "register" ? "new-password" : "current-password"}
-                    name="password"
-                    type={isPasswordVisible ? "text" : "password"}
-                    maxLength={128}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
-                  <button
-                    aria-label={
-                      isPasswordVisible ? "Скрыть значение пароля" : "Показать значение пароля"
-                    }
-                    className="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center text-muted-foreground transition hover:bg-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    type="button"
-                    onClick={() => setIsPasswordVisible((current) => !current)}
-                  >
-                    {isPasswordVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
+            ) : null}
+            <label className="grid gap-2" htmlFor="auth-login">
+              <span className="metadata-label">
+                {mode === "register" ? "Email" : "Email или имя профиля"}
+              </span>
+              <input
+                id="auth-login"
+                className="min-h-11 border border-input bg-background px-3 font-mono text-sm font-bold text-foreground outline-none transition focus:border-primary"
+                autoComplete={mode === "register" ? "email" : "username"}
+                name={mode === "register" ? "email" : "login"}
+                type={mode === "register" ? "email" : "text"}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+            <div className="grid gap-2">
+              <label className="metadata-label" htmlFor="auth-password">
+                Пароль
+              </label>
+              <div className="relative">
+                <input
+                  id="auth-password"
+                  className="min-h-11 w-full border border-input bg-background px-3 pr-12 font-mono text-sm font-bold text-foreground outline-none transition focus:border-primary"
+                  autoComplete={mode === "register" ? "new-password" : "current-password"}
+                  name="password"
+                  type={isPasswordVisible ? "text" : "password"}
+                  maxLength={128}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                  aria-label={
+                    isPasswordVisible ? "Скрыть значение пароля" : "Показать значение пароля"
+                  }
+                  className="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center text-muted-foreground transition hover:bg-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  type="button"
+                  onClick={() => setIsPasswordVisible((current) => !current)}
+                >
+                  {isPasswordVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
               </div>
-              {mode === "register" ? (
-                <fieldset
-                  className="grid gap-3 border border-border p-3"
-                  disabled={documentsLoading}
-                >
-                  <legend className="px-1 text-sm font-bold">Обязательные документы</legend>
-                  {documentsLoading ? (
-                    <p className="text-sm text-muted-foreground">Загружаем документы…</p>
-                  ) : null}
-                  {documentsError ? (
-                    <div className="grid gap-2">
-                      <p className="text-sm text-danger">{documentsError}</p>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void loadDocuments()}
+            </div>
+            {mode === "register" ? (
+              <fieldset className="grid gap-3 border border-border p-3" disabled={documentsLoading}>
+                <legend className="px-1 text-sm font-bold">Обязательные документы</legend>
+                {documentsLoading ? (
+                  <p className="text-sm text-muted-foreground">Загружаем документы…</p>
+                ) : null}
+                {documentsError ? (
+                  <div className="grid gap-2">
+                    <p className="text-sm text-danger">{documentsError}</p>
+                    <Button type="button" variant="secondary" onClick={() => void loadDocuments()}>
+                      Повторить загрузку
+                    </Button>
+                  </div>
+                ) : null}
+                {documents?.map((document) => (
+                  <label key={document.kind} className="flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={checks[document.kind]}
+                      onChange={(event) =>
+                        setChecks((current) => ({
+                          ...current,
+                          [document.kind]: event.target.checked
+                        }))
+                      }
+                    />
+                    <span>
+                      Принимаю{" "}
+                      <a
+                        className="underline decoration-primary underline-offset-2"
+                        href={document.publicPath}
+                        target="_blank"
+                        rel="noreferrer"
                       >
-                        Повторить загрузку
-                      </Button>
-                    </div>
-                  ) : null}
-                  {documents?.map((document) => (
-                    <label key={document.kind} className="flex items-start gap-3 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={checks[document.kind]}
-                        onChange={(event) =>
-                          setChecks((current) => ({
-                            ...current,
-                            [document.kind]: event.target.checked
-                          }))
-                        }
-                      />
-                      <span>
-                        Принимаю{" "}
-                        <a
-                          className="underline decoration-primary underline-offset-2"
-                          href={document.publicPath}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {document.title} (версия {document.version})
-                        </a>
-                      </span>
-                    </label>
-                  ))}
-                </fieldset>
-              ) : null}
-              {errorMessage ? (
-                <div
-                  className="border border-danger/30 bg-danger/10 p-3 text-sm font-semibold text-danger"
-                  role="alert"
-                >
-                  {errorMessage}
-                </div>
-              ) : null}
-              {mode === "login" ? (
-                <div className="flex flex-wrap gap-3 text-sm">
-                  <Link className="underline" to="/forgot-password">
-                    Не помню пароль
-                  </Link>
-                  {authErrorCode === "EMAIL_NOT_VERIFIED" ||
-                  localError?.includes("Подтвердите email") ? (
-                    <button
-                      className="underline"
-                      type="button"
-                      disabled={resending || isResendCoolingDown}
-                      onClick={() => void sendVerification(email)}
-                    >
-                      {resending
-                        ? "Отправляем..."
-                        : isResendCoolingDown
-                          ? `Повторная отправка через ${resendRemainingSeconds} с`
-                          : "Отправить подтверждение повторно"}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-              {resendMessage ? (
-                <p className="text-sm text-muted-foreground" role="status">
-                  {resendMessage}
-                </p>
-              ) : null}
-              <Button
-                className="w-full"
-                disabled={mode === "register" ? isRegisterDisabled : isSubmitting}
-                type="submit"
+                        {document.title} (версия {document.version})
+                      </a>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
+            {errorMessage ? (
+              <div
+                className="border border-danger/30 bg-danger/10 p-3 text-sm font-semibold text-danger"
+                role="alert"
               >
-                {isSubmitting
-                  ? "Проверяем доступ..."
-                  : mode === "register"
-                    ? "Отправить письмо для подтверждения"
-                    : "Войти"}
-              </Button>
-            </form>
-          )}
+                {errorMessage}
+              </div>
+            ) : null}
+            {mode === "login" ? (
+              <div className="flex flex-wrap gap-3 text-sm">
+                <Link className="underline" to="/forgot-password">
+                  Не помню пароль
+                </Link>
+              </div>
+            ) : null}
+            <Button
+              className="w-full"
+              disabled={mode === "register" ? isRegisterDisabled : isSubmitting}
+              type="submit"
+            >
+              {isSubmitting
+                ? "Проверяем доступ..."
+                : mode === "register"
+                  ? "Получить код подтверждения"
+                  : "Войти"}
+            </Button>
+          </form>
         </div>
       </section>
       <LegalFooter />

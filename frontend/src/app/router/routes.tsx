@@ -27,8 +27,10 @@ export const router = createBrowserRouter([
     element: <LoginPage />
   },
   { path: ROUTES.verifyEmail, element: <VerifyEmailPage /> },
+  { path: `${ROUTES.verifyEmail}/:confirmationId`, element: <VerifyEmailPage /> },
   { path: ROUTES.forgotPassword, element: <ForgotPasswordPage /> },
   { path: ROUTES.resetPassword, element: <ResetPasswordPage /> },
+  { path: `${ROUTES.resetPassword}/:resetId`, element: <ResetPasswordPage /> },
   { path: ROUTES.legalPrivacy, element: <LegalDocumentPage kind="privacy_policy" /> },
   { path: ROUTES.legalConsent, element: <LegalDocumentPage kind="personal_data_consent" /> },
   { path: ROUTES.legalAgreement, element: <LegalDocumentPage kind="user_agreement" /> },

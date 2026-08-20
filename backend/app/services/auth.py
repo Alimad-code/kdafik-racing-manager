@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 from fastapi import status
 
@@ -6,14 +7,17 @@ from app.core.config import Settings
 from app.core.errors import DomainError, ErrorCode
 from app.core.security import (
     create_access_token,
+    generate_email_code,
     generate_refresh_token,
+    hash_email_code,
     hash_password,
     hash_refresh_token,
+    verify_email_code,
     verify_password,
 )
 from app.domain.enums import UserRole
 from app.models import (
-    EmailActionToken,
+    EmailActionCode,
     PendingRegistration,
     PendingRegistrationAcceptance,
     User,
@@ -45,8 +49,10 @@ class AuthResult:
 
 
 PASSWORD_RESET = "password_reset"
-REGISTRATION_TOKEN_TTL = timedelta(hours=24)
-REGISTRATION_RESEND_COOLDOWN = timedelta(minutes=5)
+REGISTRATION_TTL = timedelta(hours=24)
+REGISTRATION_CODE_TTL = timedelta(minutes=15)
+PASSWORD_RESET_CODE_TTL = timedelta(minutes=10)
+EMAIL_CODE_RESEND_COOLDOWN = timedelta(seconds=60)
 
 
 class AuthService:
@@ -62,7 +68,7 @@ class AuthService:
         self.settings = settings
         self.email_sender = email_sender
 
-    def register(self, payload: RegisterRequest) -> None:
+    def register(self, payload: RegisterRequest) -> tuple[UUID, str]:
         try:
             email = self._normalize_email(payload.email)
             display_name = self._normalize_display_name(payload.display_name)
@@ -101,7 +107,7 @@ class AuthService:
                     self._send_registration_confirmation(pending_by_email)
                 else:
                     self.repository.commit()
-                return
+                return pending_by_email.id, self._mask_email(pending_by_email.email)
             if (
                 self.repository.get_pending_registration_by_display_name_normalized(
                     display_name_normalized
@@ -116,14 +122,19 @@ class AuthService:
                 )
 
             now = datetime.now(UTC)
-            token = generate_refresh_token()
+            code = generate_email_code()
+            registration_id = uuid4()
             registration = PendingRegistration(
                 display_name=display_name,
                 display_name_normalized=display_name_normalized,
                 email=email,
                 password_hash=hash_password(payload.password),
-                confirmation_token_hash=hash_refresh_token(token),
-                expires_at=now + REGISTRATION_TOKEN_TTL,
+                id=registration_id,
+                confirmation_code_hash=hash_email_code(
+                    self.settings, "registration", registration_id, code
+                ),
+                code_expires_at=now + REGISTRATION_CODE_TTL,
+                expires_at=now + REGISTRATION_TTL,
                 sent_at=now,
             )
             self.repository.add_pending_registration(registration)
@@ -138,7 +149,8 @@ class AuthService:
                     )
                 )
             self.repository.commit()
-            self._deliver_registration_confirmation(registration, token)
+            self._deliver_registration_confirmation(registration, code)
+            return registration.id, self._mask_email(registration.email)
         except DomainError:
             self.repository.rollback()
             raise
@@ -277,6 +289,7 @@ class AuthService:
             self._check_current_password(user, payload.current_password)
             user.active_season_id = None
             self.repository.flush()
+            self.repository.delete_completed_registrations(user.id)
             self.repository.delete_user(user)
             self.repository.commit()
         except DomainError:
@@ -307,21 +320,28 @@ class AuthService:
             self.repository.rollback()
             raise
 
-    def resend_registration_confirmation(self, email: str) -> None:
+    def resend_registration_confirmation(self, confirmation_id: UUID) -> None:
         self._require_email_sender()
         try:
-            registration = self.repository.get_pending_registration_by_email(
-                self._normalize_email(email)
+            registration = self.repository.get_pending_registration_for_update_by_id(
+                confirmation_id
             )
-            if registration is None or registration.confirmed_at is not None:
+            now = datetime.now(UTC)
+            if (
+                registration is None
+                or registration.confirmed_at is not None
+                or self._as_utc(registration.expires_at) <= now
+            ):
                 self.repository.commit()
                 return
-            if not self._registration_can_resend(registration, datetime.now(UTC)):
+            if not self._registration_can_resend(registration, now):
                 self.repository.commit()
                 return
             self._send_registration_confirmation(registration)
-        except DomainError:
+        except DomainError as exc:
             self.repository.rollback()
+            if exc.code == ErrorCode.EMAIL_DELIVERY_UNAVAILABLE:
+                return
             raise
         except Exception:
             self.repository.rollback()
@@ -330,15 +350,29 @@ class AuthService:
     def confirm_registration(self, payload: RegistrationConfirmationRequest) -> None:
         try:
             now = datetime.now(UTC)
-            registration = self.repository.get_pending_registration_by_token_hash(
-                hash_refresh_token(payload.token)
+            registration = self.repository.get_pending_registration_for_update_by_id(
+                payload.confirmation_id
             )
-            if registration is None or self._as_utc(registration.expires_at) <= now:
+            if (
+                registration is None
+                or registration.confirmed_at is not None
+                or self._as_utc(registration.expires_at) <= now
+                or self._as_utc(registration.code_expires_at) <= now
+                or registration.code_failed_attempts >= 5
+                or not verify_email_code(
+                    self.settings,
+                    "registration",
+                    registration.id,
+                    payload.code,
+                    registration.confirmation_code_hash,
+                )
+            ):
+                if registration is not None and registration.confirmed_at is None:
+                    registration_id = registration.id
+                    self.repository.session.expire(registration)
+                    self.repository.record_pending_registration_code_failure(registration_id, now)
                 self.repository.commit()
-                return
-            if registration.confirmed_at is not None:
-                self.repository.commit()
-                return
+                self._raise_invalid_email_action_code()
             accepted = {
                 item.kind: item.version for item in registration.acceptances if item.accepted
             }
@@ -379,7 +413,10 @@ class AuthService:
                 )
             season = self.season_service.create_initial_season_model(SeasonCreate(), user)
             user.active_season_id = season.id
-            registration.confirmed_at = now
+            registration_id = registration.id
+            self.repository.session.expire(registration)
+            if not self.repository.consume_pending_registration_code(registration_id, now):
+                self._raise_invalid_email_action_code()
             registration.completed_user_id = user.id
             user.email_verified_at = now
             self.repository.commit()
@@ -390,19 +427,67 @@ class AuthService:
             self.repository.rollback()
             raise
 
-    def forgot_password(self, email: str) -> None:
+    def forgot_password(self, email: str) -> tuple[UUID, str]:
+        self._require_email_sender()
+        normalized_email = self._normalize_email(email)
+        masked_email = self._mask_email(normalized_email)
+        try:
+            user = self.repository.get_user_by_email(normalized_email)
+            if user is None:
+                self.repository.commit()
+                return uuid4(), masked_email
+            now = datetime.now(UTC)
+            current_code = self.repository.get_current_email_action_code_for_update(
+                user.id, PASSWORD_RESET, now
+            )
+            if (
+                current_code is not None
+                and self._email_action_sent_at(current_code)
+                >= now - EMAIL_CODE_RESEND_COOLDOWN
+            ):
+                self.repository.commit()
+                return current_code.id, masked_email
+            return self._send_new_email_action(user, PASSWORD_RESET), masked_email
+        except DomainError as exc:
+            self.repository.rollback()
+            if exc.code == ErrorCode.EMAIL_DELIVERY_UNAVAILABLE:
+                return uuid4(), masked_email
+            raise
+        except Exception:
+            self.repository.rollback()
+            raise
+
+    def resend_password_reset(self, reset_id: UUID) -> None:
         self._require_email_sender()
         try:
-            user = self.repository.get_user_by_email(self._normalize_email(email))
+            previous_code = self.repository.get_email_action_code_for_resend(reset_id)
+            if (
+                previous_code is None
+                or previous_code.purpose != PASSWORD_RESET
+                or previous_code.consumed_at is not None
+            ):
+                self.repository.commit()
+                return
+            user = self.repository.get_user_by_id(previous_code.user_id)
             if user is None:
                 self.repository.commit()
                 return
-            if self._has_email_action_cooldown(user, PASSWORD_RESET):
+            now = datetime.now(UTC)
+            current_code = self.repository.get_current_email_action_code_for_update(
+                user.id, PASSWORD_RESET, now
+            )
+            if (
+                current_code is not None
+                and self._email_action_sent_at(current_code)
+                >= now - EMAIL_CODE_RESEND_COOLDOWN
+            ):
                 self.repository.commit()
                 return
-            self._send_new_email_action(user, PASSWORD_RESET)
-        except DomainError:
+            self._resend_email_action(previous_code, user, PASSWORD_RESET)
+        except DomainError as exc:
             self.repository.rollback()
+            if exc.code == ErrorCode.EMAIL_DELIVERY_UNAVAILABLE:
+                return
             raise
         except Exception:
             self.repository.rollback()
@@ -411,14 +496,27 @@ class AuthService:
     def reset_password(self, payload: ResetPasswordRequest) -> None:
         try:
             now = datetime.now(UTC)
-            user_id = self.repository.consume_email_action(
-                self._hash_email_action_token(payload.token), PASSWORD_RESET, now
+            code = self.repository.get_email_action_code_for_update_by_id(
+                payload.reset_id, PASSWORD_RESET, now
             )
-            if user_id is None:
-                self._raise_invalid_email_action_token()
-            user = self.repository.get_user_by_id(user_id)
-            if user is None:
-                self._raise_invalid_email_action_token()
+            user = self.repository.get_user_by_id(code.user_id) if code is not None else None
+            if (
+                user is None
+                or code is None
+                or not verify_email_code(
+                    self.settings, PASSWORD_RESET, user.id, payload.code, code.code_hash
+                )
+            ):
+                if code is not None:
+                    code_id = code.id
+                    self.repository.session.expire(code)
+                    self.repository.record_email_action_code_failure(code_id, now)
+                self.repository.commit()
+                self._raise_invalid_email_action_code()
+            code_id = code.id
+            self.repository.session.expire(code)
+            if self.repository.consume_email_action_code(code_id, now) is None:
+                self._raise_invalid_email_action_code()
             user.password_hash = hash_password(payload.new_password)
             self.repository.revoke_all_refresh_sessions(user.id, now)
             self.repository.invalidate_pending_websocket_tickets(user.id, now)
@@ -431,61 +529,75 @@ class AuthService:
             self.repository.rollback()
             raise
 
-    def _send_new_email_action(self, user: User, purpose: str) -> None:
-        """Persist only a digest; the raw token only exists for this send call."""
+    def _send_new_email_action(self, user: User, purpose: str) -> UUID:
+        """Persist only a context-bound code digest; the code exists only for delivery."""
         now = datetime.now(UTC)
-        token = generate_refresh_token()
-        ttl = timedelta(minutes=30)
-        self.repository.invalidate_pending_email_actions(user.id, purpose, now)
-        self.repository.add_email_action_token(
-            EmailActionToken(
-                user_id=user.id,
-                purpose=purpose,
-                token_hash=self._hash_email_action_token(token),
-                expires_at=now + ttl,
-            )
+        code = generate_email_code()
+        self.repository.invalidate_pending_email_codes(user.id, purpose, now)
+        action_code = EmailActionCode(
+            user_id=user.id,
+            purpose=purpose,
+            code_hash=hash_email_code(self.settings, purpose, user.id, code),
+            expires_at=now + PASSWORD_RESET_CODE_TTL,
         )
+        self.repository.add_email_action_code(action_code)
         self.repository.commit()
         try:
-            self.email_sender.send_password_reset(user.email, token)  # type: ignore[union-attr]
+            self.email_sender.send_password_reset(user.email, code)  # type: ignore[union-attr]
         except EmailDeliveryError:
-            self.repository.invalidate_pending_email_actions(user.id, purpose, datetime.now(UTC))
+            action_code.expires_at = datetime.now(UTC)
             self.repository.commit()
-            raise DomainError(
-                ErrorCode.EMAIL_DELIVERY_UNAVAILABLE,
-                "Email delivery is temporarily unavailable.",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            ) from None
+        return action_code.id
 
-    def _has_email_action_cooldown(self, user: User, purpose: str) -> bool:
+    def _resend_email_action(
+        self, action_code: EmailActionCode, user: User, purpose: str
+    ) -> None:
         now = datetime.now(UTC)
-        cutoff = now - timedelta(minutes=5)
-        return self.repository.has_email_action_cooldown(user.id, purpose, cutoff, now)
+        code = generate_email_code()
+        action_code.code_hash = hash_email_code(self.settings, purpose, user.id, code)
+        action_code.expires_at = now + PASSWORD_RESET_CODE_TTL
+        action_code.failed_attempts = 0
+        action_code.consumed_at = None
+        self.repository.commit()
+        try:
+            self.email_sender.send_password_reset(user.email, code)  # type: ignore[union-attr]
+        except EmailDeliveryError:
+            action_code.expires_at = datetime.now(UTC)
+            self.repository.commit()
+
+    def _email_action_sent_at(self, action_code: EmailActionCode) -> datetime:
+        return max(
+            self._as_utc(action_code.created_at),
+            self._as_utc(action_code.updated_at),
+        )
 
     @staticmethod
     def _registration_can_resend(registration: PendingRegistration, now: datetime) -> bool:
         sent_at = registration.sent_at
         if sent_at.tzinfo is None:
             sent_at = sent_at.replace(tzinfo=UTC)
-        return sent_at <= now - REGISTRATION_RESEND_COOLDOWN
+        return sent_at <= now - EMAIL_CODE_RESEND_COOLDOWN
 
     def _send_registration_confirmation(self, registration: PendingRegistration) -> None:
-        token = generate_refresh_token()
+        code = generate_email_code()
         now = datetime.now(UTC)
-        registration.confirmation_token_hash = hash_refresh_token(token)
-        registration.expires_at = now + REGISTRATION_TOKEN_TTL
+        registration.confirmation_code_hash = hash_email_code(
+            self.settings, "registration", registration.id, code
+        )
+        registration.code_expires_at = now + REGISTRATION_CODE_TTL
+        registration.code_failed_attempts = 0
         registration.sent_at = now
         self.repository.commit()
-        self._deliver_registration_confirmation(registration, token)
+        self._deliver_registration_confirmation(registration, code)
 
     def _deliver_registration_confirmation(
-        self, registration: PendingRegistration, token: str
+        self, registration: PendingRegistration, code: str
     ) -> None:
         try:
-            self.email_sender.send_verification(registration.email, token)  # type: ignore[union-attr]
+            self.email_sender.send_verification(registration.email, code)  # type: ignore[union-attr]
         except EmailDeliveryError:
-            registration.expires_at = datetime.now(UTC)
-            registration.sent_at = datetime.now(UTC) - REGISTRATION_RESEND_COOLDOWN
+            registration.code_expires_at = datetime.now(UTC)
+            registration.sent_at = datetime.now(UTC) - EMAIL_CODE_RESEND_COOLDOWN
             self.repository.commit()
             raise DomainError(
                 ErrorCode.EMAIL_DELIVERY_UNAVAILABLE,
@@ -501,6 +613,14 @@ class AuthService:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
+    @staticmethod
+    def _mask_email(email: str) -> str:
+        local_part, separator, domain = email.partition("@")
+        if not separator:
+            return email
+        visible = local_part[:2]
+        return f"{visible}{'*' * max(1, len(local_part) - len(visible))}@{domain}"
+
     def _notify_password_changed(self, recipient: str) -> None:
         if self.email_sender is None:
             return
@@ -508,10 +628,6 @@ class AuthService:
             self.email_sender.send_password_changed(recipient)
         except EmailDeliveryError:
             return
-
-    @staticmethod
-    def _hash_email_action_token(token: str) -> str:
-        return hash_refresh_token(token)
 
     def _valid_refresh_session(self, refresh_token: str | None) -> UserSession:
         if not refresh_token:
@@ -611,9 +727,9 @@ class AuthService:
         )
 
     @staticmethod
-    def _raise_invalid_email_action_token() -> None:
+    def _raise_invalid_email_action_code() -> None:
         raise DomainError(
-            ErrorCode.INVALID_EMAIL_ACTION_TOKEN,
-            "Invalid or expired email action token.",
+            ErrorCode.INVALID_EMAIL_ACTION_CODE,
+            "Invalid or expired email action code.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )

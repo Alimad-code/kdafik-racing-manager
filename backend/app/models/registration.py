@@ -24,7 +24,13 @@ class PendingRegistration(TimestampMixin, Base):
 
     __tablename__ = "pending_registrations"
     __table_args__ = (
-        Index("ix_pending_registrations_token_hash", "confirmation_token_hash", unique=True),
+        CheckConstraint(
+            "code_failed_attempts >= 0", name="ck_pending_registrations_code_failed_attempts"
+        ),
+        Index(
+            "ix_pending_registrations_confirmation_code_hash", "confirmation_code_hash", unique=True
+        ),
+        Index("ix_pending_registrations_code_expires_at", "code_expires_at"),
         Index("ix_pending_registrations_expires_at", "expires_at"),
     )
 
@@ -33,12 +39,14 @@ class PendingRegistration(TimestampMixin, Base):
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     display_name_normalized: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    confirmation_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    confirmation_code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    code_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    code_failed_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_user_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+        Uuid, ForeignKey("users.id", ondelete="CASCADE")
     )
 
     acceptances: Mapped[list[PendingRegistrationAcceptance]] = relationship(

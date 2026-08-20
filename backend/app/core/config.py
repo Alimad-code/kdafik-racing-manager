@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LOCAL_DATABASE_URL = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/kdafik_racing_manager"
 LOCAL_JWT_SECRET = "local-only-secret-change-before-public-use"
+LOCAL_EMAIL_CODE_SECRET = "local-only-email-code-secret-change-before-public-use"
 LOCAL_TRUSTED_HOSTS = ["localhost", "127.0.0.1", "test", "testserver"]
 ALLOWED_CORS_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
 ALLOWED_CORS_HEADERS = ["Authorization", "Content-Type"]
@@ -38,7 +39,9 @@ class Settings(BaseSettings):
     )
     trusted_hosts: list[str] = Field(default_factory=lambda: LOCAL_TRUSTED_HOSTS.copy())
     email_enabled: bool = False
-    frontend_public_base_url: str = ""
+    email_code_secret: SecretStr = Field(
+        default_factory=lambda: SecretStr(LOCAL_EMAIL_CODE_SECRET), repr=False
+    )
     email_from_address: str = YANDEX_SMTP_SENDER
     smtp_host: str = YANDEX_SMTP_HOST
     smtp_port: int = YANDEX_SMTP_PORT
@@ -122,21 +125,14 @@ class Settings(BaseSettings):
         ):
             errors.append("trusted_hosts must contain explicit hosts without wildcards")
         if self.email_enabled:
-            parsed_frontend_url = urlparse(self.frontend_public_base_url)
-            requires_https = self.environment == "production"
-            valid_frontend_url = (
-                parsed_frontend_url.scheme in ({"https"} if requires_https else {"http", "https"})
-                and bool(parsed_frontend_url.netloc)
-                and not parsed_frontend_url.params
-                and not parsed_frontend_url.query
-                and not parsed_frontend_url.fragment
-                and not parsed_frontend_url.username
-                and not parsed_frontend_url.password
-                and not self._contains_placeholder(self.frontend_public_base_url)
-            )
-            if not valid_frontend_url:
+            email_code_secret = self.email_code_secret.get_secret_value()
+            if self.environment == "production" and (
+                len(email_code_secret) < 32
+                or email_code_secret == LOCAL_EMAIL_CODE_SECRET
+                or self._contains_placeholder(email_code_secret)
+            ):
                 errors.append(
-                    "frontend_public_base_url must be a public HTTP(S) URL when email is enabled"
+                    "email_code_secret must be a non-default value of at least 32 characters"
                 )
             if not self.smtp_username or not self.smtp_password.get_secret_value():
                 errors.append("SMTP credentials are required when email is enabled")

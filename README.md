@@ -14,22 +14,9 @@ docker compose up --build -d
 проксирует запросы `/api` и WebSocket-соединения на backend. Документация FastAPI
 доступна напрямую на [http://localhost:8000/docs](http://localhost:8000/docs).
 
-## HTTPS-режим в Docker
-
-Чтобы запустить production-подобный HTTPS-режим, откройте PowerShell в корне репозитория.
-
-1. Запустите Docker Desktop.
-2. Создайте `.env` из `.env.example`, затем `deploy/.env.local` из `deploy/.env.local.example`. Единственный переключатель окружения — `APP_ENVIRONMENT=local`; строку `COMPOSE_PROFILES=${APP_ENVIRONMENT}` не меняйте. Задайте `POSTGRES_PASSWORD` и JWT-секрет длиной не менее 32 символов. Если меняете пароль, обновите его и в `DATABASE_URL`.
-3. Сгенерируйте локальный TLS-сертификат: `./deploy/scripts/new-local-tls.ps1`.
-4. Запустите стек:
-
-```powershell
-docker compose -f compose.yaml -f compose.production.yaml --profile production up --build -d
-```
-
-После того как сервисы станут healthy, откройте `https://kdafik.localhost`. Предупреждение о локальном self-signed сертификате ожидаемо.
-
-Полная инструкция, включая проверку сервисов и безопасную остановку: [локальный запуск](docs/deployment/local.md). Для публичного размещения используйте [production-инструкцию](docs/deployment/production.md).
+Локальный запуск не использует Nginx или TLS: Nginx является только production-edge.
+Подробности: [локальный запуск](docs/deployment/local.md). Для публичного размещения
+используйте [production-инструкцию](docs/deployment/production.md).
 
 ## Игровые правила
 

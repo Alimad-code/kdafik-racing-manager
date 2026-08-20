@@ -10,10 +10,14 @@ from app.schemas.auth import (
     DeleteAccountRequest,
     EmailRequest,
     LoginRequest,
+    PasswordResetChallengeRead,
+    PasswordResetResendRequest,
     ProfileRead,
     ProfileUpdateRequest,
     RegisterRequest,
+    RegistrationChallengeRead,
     RegistrationConfirmationRequest,
+    RegistrationResendRequest,
     ResetPasswordRequest,
 )
 from app.schemas.season import UserRead
@@ -24,23 +28,26 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post(
     "/register",
-    response_model=AcceptedResponse,
+    response_model=RegistrationChallengeRead,
     status_code=status.HTTP_201_CREATED,
     summary="Start a pending registration",
 )
 def register(
     payload: RegisterRequest,
     service: AuthServiceDependency,
-) -> AcceptedResponse:
-    service.register(payload)
-    return AcceptedResponse()
+) -> RegistrationChallengeRead:
+    confirmation_id, masked_email = service.register(payload)
+    return RegistrationChallengeRead(
+        confirmation_id=confirmation_id,
+        masked_email=masked_email,
+    )
 
 
 @router.post("/registration/resend", response_model=AcceptedResponse)
 def resend_registration_confirmation(
-    payload: EmailRequest, service: AuthServiceDependency
+    payload: RegistrationResendRequest, service: AuthServiceDependency
 ) -> AcceptedResponse:
-    service.resend_registration_confirmation(payload.email)
+    service.resend_registration_confirmation(payload.confirmation_id)
     return AcceptedResponse()
 
 
@@ -52,9 +59,19 @@ def confirm_registration(
     return AcceptedResponse()
 
 
-@router.post("/password/forgot", response_model=AcceptedResponse)
-def forgot_password(payload: EmailRequest, service: AuthServiceDependency) -> AcceptedResponse:
-    service.forgot_password(payload.email)
+@router.post("/password/forgot", response_model=PasswordResetChallengeRead)
+def forgot_password(
+    payload: EmailRequest, service: AuthServiceDependency
+) -> PasswordResetChallengeRead:
+    reset_id, masked_email = service.forgot_password(payload.email)
+    return PasswordResetChallengeRead(reset_id=reset_id, masked_email=masked_email)
+
+
+@router.post("/password/resend", response_model=AcceptedResponse)
+def resend_password_reset(
+    payload: PasswordResetResendRequest, service: AuthServiceDependency
+) -> AcceptedResponse:
+    service.resend_password_reset(payload.reset_id)
     return AcceptedResponse()
 
 

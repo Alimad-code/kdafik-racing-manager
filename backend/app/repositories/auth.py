@@ -1,10 +1,12 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import EmailActionToken, PendingRegistration, User, UserSession, WebSocketTicket
+from app.models import EmailActionCode, PendingRegistration, User, UserSession, WebSocketTicket
+
+MAX_EMAIL_CODE_FAILED_ATTEMPTS = 5
 
 
 class AuthRepository:
@@ -36,12 +38,51 @@ class AuthRepository:
             )
         )
 
-    def get_pending_registration_by_token_hash(self, token_hash: str) -> PendingRegistration | None:
+    def get_pending_registration_for_update_by_id(
+        self, registration_id: UUID
+    ) -> PendingRegistration | None:
         return self.session.scalar(
             select(PendingRegistration).where(
-                PendingRegistration.confirmation_token_hash == token_hash
-            )
+                PendingRegistration.id == registration_id
+            ).with_for_update()
         )
+
+    def consume_pending_registration_code(self, registration_id: UUID, now: datetime) -> bool:
+        statement = (
+            update(PendingRegistration)
+            .where(
+                PendingRegistration.id == registration_id,
+                PendingRegistration.confirmed_at.is_(None),
+                PendingRegistration.code_expires_at > now,
+                PendingRegistration.code_failed_attempts < MAX_EMAIL_CODE_FAILED_ATTEMPTS,
+            )
+            .values(confirmed_at=now)
+            .returning(PendingRegistration.id)
+        )
+        return self.session.scalar(statement) is not None
+
+    def record_pending_registration_code_failure(
+        self, registration_id: UUID, now: datetime
+    ) -> bool:
+        attempts = PendingRegistration.code_failed_attempts + 1
+        statement = (
+            update(PendingRegistration)
+            .where(
+                PendingRegistration.id == registration_id,
+                PendingRegistration.confirmed_at.is_(None),
+                PendingRegistration.code_expires_at > now,
+                PendingRegistration.code_failed_attempts < MAX_EMAIL_CODE_FAILED_ATTEMPTS,
+            )
+            .values(
+                code_failed_attempts=attempts,
+                code_expires_at=case(
+                    (attempts >= MAX_EMAIL_CODE_FAILED_ATTEMPTS, now),
+                    else_=PendingRegistration.code_expires_at,
+                ),
+            )
+            .returning(PendingRegistration.code_failed_attempts)
+        )
+        return self.session.scalar(statement) is not None
 
     def add_pending_registration(self, registration: PendingRegistration) -> None:
         self.session.add(registration)
@@ -62,6 +103,13 @@ class AuthRepository:
 
     def delete_user(self, user: User) -> None:
         self.session.delete(user)
+
+    def delete_completed_registrations(self, user_id: UUID) -> None:
+        registrations = self.session.scalars(
+            select(PendingRegistration).where(PendingRegistration.completed_user_id == user_id)
+        ).all()
+        for registration in registrations:
+            self.session.delete(registration)
 
     def revoke_refresh_session(self, user_session: UserSession, revoked_at: datetime) -> None:
         user_session.revoked_at = revoked_at
@@ -89,46 +137,106 @@ class AuthRepository:
     def add_websocket_ticket(self, ticket: WebSocketTicket) -> None:
         self.session.add(ticket)
 
-    def add_email_action_token(self, token: EmailActionToken) -> None:
-        self.session.add(token)
+    def add_email_action_code(self, code: EmailActionCode) -> None:
+        self.session.add(code)
 
-    def invalidate_pending_email_actions(self, user_id: UUID, purpose: str, now: datetime) -> None:
+    def invalidate_pending_email_codes(self, user_id: UUID, purpose: str, now: datetime) -> None:
         self.session.execute(
-            update(EmailActionToken)
+            update(EmailActionCode)
             .where(
-                EmailActionToken.user_id == user_id,
-                EmailActionToken.purpose == purpose,
-                EmailActionToken.consumed_at.is_(None),
-                EmailActionToken.expires_at > now,
+                EmailActionCode.user_id == user_id,
+                EmailActionCode.purpose == purpose,
+                EmailActionCode.consumed_at.is_(None),
+                EmailActionCode.expires_at > now,
             )
             .values(consumed_at=now)
+            .execution_options(synchronize_session=False)
         )
 
-    def has_email_action_cooldown(
+    def has_email_code_cooldown(
         self, user_id: UUID, purpose: str, cutoff: datetime, now: datetime
     ) -> bool:
-        statement = select(EmailActionToken.id).where(
-            EmailActionToken.user_id == user_id,
-            EmailActionToken.purpose == purpose,
-            EmailActionToken.created_at >= cutoff,
-            EmailActionToken.consumed_at.is_(None),
-            EmailActionToken.expires_at > now,
+        statement = select(EmailActionCode.id).where(
+            EmailActionCode.user_id == user_id,
+            EmailActionCode.purpose == purpose,
+            EmailActionCode.created_at >= cutoff,
+            EmailActionCode.consumed_at.is_(None),
+            EmailActionCode.expires_at > now,
         )
         return self.session.scalar(statement) is not None
 
-    def consume_email_action(self, token_hash: str, purpose: str, now: datetime) -> UUID | None:
+    def get_current_email_action_code_for_update(
+        self, user_id: UUID, purpose: str, now: datetime
+    ) -> EmailActionCode | None:
         statement = (
-            update(EmailActionToken)
+            select(EmailActionCode)
             .where(
-                EmailActionToken.token_hash == token_hash,
-                EmailActionToken.purpose == purpose,
-                EmailActionToken.consumed_at.is_(None),
-                EmailActionToken.expires_at > now,
+                EmailActionCode.user_id == user_id,
+                EmailActionCode.purpose == purpose,
+                EmailActionCode.consumed_at.is_(None),
+                EmailActionCode.expires_at > now,
+                EmailActionCode.failed_attempts < MAX_EMAIL_CODE_FAILED_ATTEMPTS,
             )
-            .values(consumed_at=now)
-            .returning(EmailActionToken.user_id)
+            .order_by(EmailActionCode.created_at.desc())
+            .with_for_update()
         )
         return self.session.scalar(statement)
+
+    def get_email_action_code_for_update_by_id(
+        self, code_id: UUID, purpose: str, now: datetime
+    ) -> EmailActionCode | None:
+        statement = (
+            select(EmailActionCode)
+            .where(
+                EmailActionCode.id == code_id,
+                EmailActionCode.purpose == purpose,
+                EmailActionCode.consumed_at.is_(None),
+                EmailActionCode.expires_at > now,
+                EmailActionCode.failed_attempts < MAX_EMAIL_CODE_FAILED_ATTEMPTS,
+            )
+            .with_for_update()
+        )
+        return self.session.scalar(statement)
+
+    def get_email_action_code_for_resend(self, code_id: UUID) -> EmailActionCode | None:
+        return self.session.scalar(
+            select(EmailActionCode).where(EmailActionCode.id == code_id).with_for_update()
+        )
+
+    def consume_email_action_code(self, code_id: UUID, now: datetime) -> UUID | None:
+        statement = (
+            update(EmailActionCode)
+            .where(
+                EmailActionCode.id == code_id,
+                EmailActionCode.consumed_at.is_(None),
+                EmailActionCode.expires_at > now,
+                EmailActionCode.failed_attempts < MAX_EMAIL_CODE_FAILED_ATTEMPTS,
+            )
+            .values(consumed_at=now)
+            .returning(EmailActionCode.user_id)
+        )
+        return self.session.scalar(statement)
+
+    def record_email_action_code_failure(self, code_id: UUID, now: datetime) -> bool:
+        attempts = EmailActionCode.failed_attempts + 1
+        statement = (
+            update(EmailActionCode)
+            .where(
+                EmailActionCode.id == code_id,
+                EmailActionCode.consumed_at.is_(None),
+                EmailActionCode.expires_at > now,
+                EmailActionCode.failed_attempts < MAX_EMAIL_CODE_FAILED_ATTEMPTS,
+            )
+            .values(
+                failed_attempts=attempts,
+                consumed_at=case(
+                    (attempts >= MAX_EMAIL_CODE_FAILED_ATTEMPTS, now),
+                    else_=EmailActionCode.consumed_at,
+                ),
+            )
+            .returning(EmailActionCode.failed_attempts)
+        )
+        return self.session.scalar(statement) is not None
 
     def invalidate_pending_websocket_tickets(self, user_id: UUID, now: datetime) -> None:
         self.session.execute(

@@ -52,7 +52,7 @@ class User(TimestampMixin, Base):
     websocket_tickets: Mapped[list[WebSocketTicket]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    email_action_tokens: Mapped[list[EmailActionToken]] = relationship(
+    email_action_codes: Mapped[list[EmailActionCode]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
     legal_acceptances: Mapped[list[UserLegalAcceptance]] = relationship(
@@ -102,16 +102,17 @@ class WebSocketTicket(TimestampMixin, Base):
     user: Mapped[User] = relationship(back_populates="websocket_tickets")
 
 
-class EmailActionToken(TimestampMixin, Base):
-    __tablename__ = "email_action_tokens"
+class EmailActionCode(TimestampMixin, Base):
+    __tablename__ = "email_action_codes"
     __table_args__ = (
         CheckConstraint(
-            "purpose IN ('verification', 'password_reset')",
-            name="ck_email_action_tokens_purpose",
+            "purpose = 'password_reset'",
+            name="ck_email_action_codes_purpose",
         ),
-        Index("ix_email_action_tokens_token_hash", "token_hash", unique=True),
-        Index("ix_email_action_tokens_user_purpose", "user_id", "purpose"),
-        Index("ix_email_action_tokens_expires_at", "expires_at"),
+        CheckConstraint("failed_attempts >= 0", name="ck_email_action_codes_failed_attempts"),
+        Index("ix_email_action_codes_code_hash", "code_hash", unique=True),
+        Index("ix_email_action_codes_user_purpose", "user_id", "purpose"),
+        Index("ix_email_action_codes_expires_at", "expires_at"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -119,8 +120,9 @@ class EmailActionToken(TimestampMixin, Base):
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     purpose: Mapped[str] = mapped_column(String(32), nullable=False)
-    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    failed_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    user: Mapped[User] = relationship(back_populates="email_action_tokens")
+    user: Mapped[User] = relationship(back_populates="email_action_codes")

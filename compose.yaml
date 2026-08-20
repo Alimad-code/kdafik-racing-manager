@@ -46,7 +46,7 @@ services:
       [
         "sh",
         "-c",
-        "set -eu; python -m alembic upgrade head; python seed_legal.py; python -m app.seed.mvp --quiet",
+        "set -eu; python -m alembic upgrade head",
       ]
     depends_on:
       db:

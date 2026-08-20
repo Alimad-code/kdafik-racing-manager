@@ -26,11 +26,10 @@ const protectedRoutes = new Map([
   ["/api/v1/auth/login", "auth_login_per_source"],
   ["/api/v1/auth/register", "auth_register_per_source"],
   ["/api/v1/auth/registration/resend", "auth_email_delivery_per_source"],
-  ["/api/v1/auth/registration/confirm", "auth_token_action_per_source"],
-  ["/api/v1/auth/email/resend-verification", "auth_email_delivery_per_source"],
+  ["/api/v1/auth/registration/confirm", "auth_code_action_per_source"],
   ["/api/v1/auth/password/forgot", "auth_email_delivery_per_source"],
-  ["/api/v1/auth/email/verify", "auth_token_action_per_source"],
-  ["/api/v1/auth/password/reset", "auth_token_action_per_source"],
+  ["/api/v1/auth/password/resend", "auth_email_delivery_per_source"],
+  ["/api/v1/auth/password/reset", "auth_code_action_per_source"],
   ["/api/v1/ws/ticket", "ws_ticket_per_source"]
 ]);
 

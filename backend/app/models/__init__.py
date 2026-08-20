@@ -5,14 +5,14 @@ from app.models.legal import LegalDocument, UserLegalAcceptance
 from app.models.registration import PendingRegistration, PendingRegistrationAcceptance
 from app.models.results import SessionResult
 from app.models.season import Season, SeasonStage, StageSession
-from app.models.user import EmailActionToken, User, UserSession, WebSocketTicket
+from app.models.user import EmailActionCode, User, UserSession, WebSocketTicket
 
 __all__ = [
     "BudgetTransaction",
     "Car",
     "CarSetup",
     "Driver",
-    "EmailActionToken",
+    "EmailActionCode",
     "LegalDocument",
     "PendingRegistration",
     "PendingRegistrationAcceptance",

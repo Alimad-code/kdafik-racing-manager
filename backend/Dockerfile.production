@@ -35,6 +35,6 @@ USER kdafik
 EXPOSE 8000
 
 # LLM dependencies and model files are not part of the ordinary production install.
-# Uvicorn access logging is disabled because ticket and email-action URLs contain one-time query tokens.
+# Uvicorn access logging is disabled so the public edge owns operational logging.
 # Nginx provides the deliberately query-free operational access log at the public boundary.
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*", "--no-access-log"]

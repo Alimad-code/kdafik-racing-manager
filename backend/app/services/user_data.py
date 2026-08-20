@@ -15,7 +15,7 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
-    EmailActionToken,
+    EmailActionCode,
     PendingRegistration,
     Season,
     SeasonStage,
@@ -44,7 +44,7 @@ EXPORTED_USER_OWNED_MODELS = frozenset(
 SECURITY_ONLY_EXCLUDED_MODELS = frozenset(
     {
         "UserSession",
-        "EmailActionToken",
+        "EmailActionCode",
         "WebSocketTicket",
         "PendingRegistration",
         "PendingRegistrationAcceptance",
@@ -237,8 +237,8 @@ class SecurityArtifactCleanup:
                 ),
                 dry_run,
             ),
-            "emailActionTokens": self._purge(
-                EmailActionToken, expired_or_consumed(EmailActionToken), dry_run
+            "emailActionCodes": self._purge(
+                EmailActionCode, expired_or_consumed(EmailActionCode), dry_run
             ),
             "websocketTickets": self._purge(
                 WebSocketTicket, expired_or_consumed(WebSocketTicket), dry_run

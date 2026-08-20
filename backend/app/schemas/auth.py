@@ -58,21 +58,39 @@ class AcceptedResponse(AuthSchema):
     accepted: bool = True
 
 
+class RegistrationChallengeRead(AcceptedResponse):
+    confirmation_id: UUID
+    masked_email: str
+
+
+class PasswordResetChallengeRead(AcceptedResponse):
+    reset_id: UUID
+    masked_email: str
+
+
 class EmailRequest(AuthSchema):
     email: str = Field(min_length=3, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-class EmailActionTokenRequest(AuthSchema):
-    token: str = Field(min_length=20, max_length=512)
+class RegistrationResendRequest(AuthSchema):
+    confirmation_id: UUID
 
 
-class RegistrationConfirmationRequest(EmailActionTokenRequest):
+class RegistrationConfirmationRequest(AuthSchema):
+    confirmation_id: UUID
+    code: str = Field(pattern=r"^\d{6}$")
     legal_acceptances: list["LegalAcceptanceRequest"] | None = Field(
         default=None, min_length=3, max_length=3
     )
 
 
-class ResetPasswordRequest(EmailActionTokenRequest):
+class PasswordResetResendRequest(AuthSchema):
+    reset_id: UUID
+
+
+class ResetPasswordRequest(AuthSchema):
+    reset_id: UUID
+    code: str = Field(pattern=r"^\d{6}$")
     new_password: str = Field(min_length=8, max_length=128)
 
 

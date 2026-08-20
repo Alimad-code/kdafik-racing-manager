@@ -5,7 +5,6 @@ import ssl
 from email.message import EmailMessage
 from html import escape
 from typing import Protocol
-from urllib.parse import quote
 
 from app.core.config import YANDEX_SMTP_SENDER, Settings
 
@@ -17,9 +16,9 @@ class EmailDeliveryError(Exception):
 
 
 class EmailSender(Protocol):
-    def send_verification(self, recipient: str, token: str) -> None: ...
+    def send_verification(self, recipient: str, code: str) -> None: ...
 
-    def send_password_reset(self, recipient: str, token: str) -> None: ...
+    def send_password_reset(self, recipient: str, code: str) -> None: ...
 
     def send_password_changed(self, recipient: str) -> None: ...
 
@@ -28,38 +27,38 @@ class SmtpEmailSender:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
-    def send_verification(self, recipient: str, token: str) -> None:
+    def send_verification(self, recipient: str, code: str) -> None:
         self._send(
             recipient,
             "Подтверждение email — Kdafik Racing Manager",
-            self._verification_text(recipient),
-            self._verification_html(recipient),
-            "/verify-email?token=",
-            token,
+            self._verification_text(recipient, code),
+            self._verification_html(recipient, code),
         )
 
-    def send_password_reset(self, recipient: str, token: str) -> None:
+    def send_password_reset(self, recipient: str, code: str) -> None:
         self._send(
             recipient,
             "Восстановление пароля — Kdafik Racing Manager",
             """Здравствуйте!
 
 Мы получили запрос на восстановление пароля для вашего аккаунта Kdafik Racing Manager.
-Перейдите по ссылке в течение 30 минут:
-{url}
+Введите код в форме восстановления в течение 10 минут:
 
+{code}
+
+Повторно запросить код можно не раньше чем через 60 секунд.
 Если вы не запрашивали восстановление пароля, просто проигнорируйте это письмо.""",
             (
                 "<p>Здравствуйте!</p>"
                 "<p>Мы получили запрос на восстановление пароля для вашего аккаунта "
                 "Kdafik Racing Manager.</p>"
-                "<p>Перейдите по ссылке в течение 30 минут:</p>"
-                '<p><a href="{url}">Восстановить пароль</a></p>'
+                "<p>Введите код в форме восстановления в течение 10 минут:</p>"
+                '<p style="font-size:32px;font-weight:bold;letter-spacing:8px">{code}</p>'
+                "<p>Повторно запросить код можно не раньше чем через 60 секунд.</p>"
                 "<p>Если вы не запрашивали восстановление пароля, просто проигнорируйте "
                 "это письмо.</p>"
             ),
-            "/reset-password?token=",
-            token,
+            code,
         )
 
     def send_password_changed(self, recipient: str) -> None:
@@ -79,24 +78,25 @@ class SmtpEmailSender:
         )
 
     @staticmethod
-    def _verification_text(recipient: str) -> str:
+    def _verification_text(recipient: str, code: str) -> str:
         return f"""Здравствуйте!
 
 Вы указали адрес {recipient} при регистрации в Kdafik Racing Manager.
-Подтвердите его в течение 24 часов:
-{{url}}
+Введите код в форме подтверждения в течение 15 минут:
 
-Повторно запросить письмо можно не раньше чем через 5 минут.
+{code}
+
+Повторно запросить код можно не раньше чем через 60 секунд.
 Если вы не регистрировались, просто проигнорируйте это письмо."""
 
     @staticmethod
-    def _verification_html(recipient: str) -> str:
+    def _verification_html(recipient: str, code: str) -> str:
         safe_recipient = escape(recipient)
         return (
             f"<p>Здравствуйте!</p><p>Вы указали адрес {safe_recipient} при регистрации в "
-            "Kdafik Racing Manager.</p><p>Подтвердите его в течение 24 часов:</p>"
-            '<p><a href="{url}">Подтвердить email</a></p>'
-            "<p>Повторно запросить письмо можно не раньше чем через 5 минут.</p>"
+            "Kdafik Racing Manager.</p><p>Введите код в форме подтверждения в течение 15 минут:</p>"
+            f'<p style="font-size:32px;font-weight:bold;letter-spacing:8px">{escape(code)}</p>'
+            "<p>Повторно запросить код можно не раньше чем через 60 секунд.</p>"
             "<p>Если вы не регистрировались, просто проигнорируйте это письмо.</p>"
         )
 
@@ -106,21 +106,14 @@ class SmtpEmailSender:
         subject: str,
         text_template: str,
         html_template: str,
-        path: str | None = None,
-        token: str | None = None,
+        code: str | None = None,
     ) -> None:
-        url = None
-        if path is not None and token is not None:
-            encoded_token = quote(token, safe="")
-            url = f"{self._settings.frontend_public_base_url.rstrip('/')}{path}{encoded_token}"
         message = EmailMessage()
         message["From"] = YANDEX_SMTP_SENDER
         message["To"] = recipient
         message["Subject"] = subject
-        message.set_content(text_template.format(url=url or ""))
-        message.add_alternative(
-            html_template.format(url=escape(url or "", quote=True)), subtype="html"
-        )
+        message.set_content(text_template.format(code=code or ""))
+        message.add_alternative(html_template.format(code=escape(code or "")), subtype="html")
         try:
             with smtplib.SMTP(
                 self._settings.smtp_host, self._settings.smtp_port, timeout=SMTP_TIMEOUT_SECONDS

@@ -14,7 +14,7 @@ class ErrorCode(StrEnum):
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED"
     EMAIL_DELIVERY_UNAVAILABLE = "EMAIL_DELIVERY_UNAVAILABLE"
-    INVALID_EMAIL_ACTION_TOKEN = "INVALID_EMAIL_ACTION_TOKEN"
+    INVALID_EMAIL_ACTION_CODE = "INVALID_EMAIL_ACTION_CODE"
     EMAIL_ACTION_COOLDOWN = "EMAIL_ACTION_COOLDOWN"
     LEGAL_DOCUMENTS_UNAVAILABLE = "LEGAL_DOCUMENTS_UNAVAILABLE"
     INVALID_LEGAL_ACCEPTANCE = "INVALID_LEGAL_ACCEPTANCE"
@@ -67,10 +67,16 @@ async def domain_error_handler(_request: Request, exc: DomainError) -> JSONRespo
 
 
 async def validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = []
+    for error in exc.errors():
+        sanitized_error = error.copy()
+        if sanitized_error.get("loc", ()) and sanitized_error["loc"][-1] == "code":
+            sanitized_error.pop("input", None)
+        errors.append(sanitized_error)
     error = ErrorResponse(
         code=ErrorCode.VALIDATION_ERROR,
         message="Request validation failed.",
-        details={"errors": jsonable_encoder(exc.errors())},
+        details={"errors": jsonable_encoder(errors)},
     )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

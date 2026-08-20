@@ -13,7 +13,7 @@ http {
     default_type application/octet-stream;
     server_tokens off;
 
-    # Intentionally logs the normalized path only: query strings may hold one-time tokens.
+    # Intentionally logs the normalized path only, never query strings.
     # No cookies, authorization headers, bodies, referrers, user agents, or client IP addresses are logged.
     log_format privacy '$time_iso8601 "$request_method $uri $server_protocol" $status $body_bytes_sent';
     access_log /dev/stdout privacy;
@@ -38,7 +38,7 @@ http {
     # Verification resend and password reset requests share one budget so alternating paths
     # cannot double the email-delivery allowance.
     limit_req_zone $binary_remote_addr zone=auth_email_delivery_per_source:10m rate=6r/m;
-    limit_req_zone $binary_remote_addr zone=auth_token_action_per_source:10m rate=12r/m;
+    limit_req_zone $binary_remote_addr zone=auth_code_action_per_source:10m rate=12r/m;
     limit_req_zone $binary_remote_addr zone=ws_ticket_per_source:10m rate=20r/m;
     # This key is held only in volatile shared memory for the duration of a
     # connection; it is neither logged nor passed to the application.
@@ -127,12 +127,7 @@ http {
         }
 
         location = /api/v1/auth/registration/confirm {
-            limit_req zone=auth_token_action_per_source burst=6 nodelay;
-            include /etc/nginx/includes/backend-proxy.conf;
-        }
-
-        location = /api/v1/auth/email/resend-verification {
-            limit_req zone=auth_email_delivery_per_source burst=3 nodelay;
+            limit_req zone=auth_code_action_per_source burst=6 nodelay;
             include /etc/nginx/includes/backend-proxy.conf;
         }
 
@@ -141,13 +136,13 @@ http {
             include /etc/nginx/includes/backend-proxy.conf;
         }
 
-        location = /api/v1/auth/email/verify {
-            limit_req zone=auth_token_action_per_source burst=6 nodelay;
+        location = /api/v1/auth/password/resend {
+            limit_req zone=auth_email_delivery_per_source burst=3 nodelay;
             include /etc/nginx/includes/backend-proxy.conf;
         }
 
         location = /api/v1/auth/password/reset {
-            limit_req zone=auth_token_action_per_source burst=6 nodelay;
+            limit_req zone=auth_code_action_per_source burst=6 nodelay;
             include /etc/nginx/includes/backend-proxy.conf;
         }
 
