@@ -37,7 +37,7 @@ services:
       start_period: 10s
 
   migrate:
-    image: kdafik-racing-manager-backend
+    <<: *backend-build
     env_file:
       - ./deploy/.env.${APP_ENVIRONMENT:?Set APP_ENVIRONMENT to local or production}
     environment:
