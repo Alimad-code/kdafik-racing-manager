@@ -9,12 +9,19 @@ Production использует Nginx как HTTPS edge с security headers, pri
 восстановления и сброса пароля. Локальная разработка использует только Vite:
 см. [local.md](local.md).
 
-На deployment host подготовьте Docker Engine, DNS, TLS-сертификат и external
-managed PostgreSQL с защищённым соединением. Создайте root `.env` из
-`.env.example` с `APP_ENVIRONMENT=production`, затем
-`deploy/.env.production` из примера. Заполните домен, external `DATABASE_URL`,
-`AUTH_JWT_SECRET`, CORS/trusted hosts, SMTP-реквизиты и уникальный
-`EMAIL_CODE_SECRET` длиной не менее 32 символов. Не используйте placeholder из
+Целевая схема для небольшого запуска — один VDS: Nginx, frontend, backend и
+PostgreSQL запускаются Docker Compose на одной внутренней сети. PostgreSQL не
+открывает порт в интернет. Отдельно необходим приватный Selectel S3-бакет с
+ежедневным резервным копированием и проверкой восстановления.
+
+На deployment host подготовьте Docker Engine, DNS и TLS-сертификат. Создайте
+root `.env` из `.env.example` с `APP_ENVIRONMENT=production`, затем
+`deploy/.env.production` из примера. Заполните `POSTGRES_PASSWORD`, внутренний
+`DATABASE_URL` с хостом `db`, `AUTH_JWT_SECRET`, CORS/trusted hosts и уникальный
+`EMAIL_CODE_SECRET` длиной не менее 32 символов. Для автоматических писем
+используйте Почтовый сервис Selectel: отправитель
+`no-reply@kdafik-racing.ru`, `smtp.mail.selcloud.ru`, порт `1127`,
+`SMTP_USE_SSL=true` и `SMTP_USE_TLS=false`. Не используйте placeholder из
 примера и не коммитьте секреты.
 
 Положите сертификат на deployment host:
@@ -46,4 +53,5 @@ curl --fail https://<public-domain>/api/v1/health
 между отправками действует 60-секундный cooldown.
 
 Для остановки используйте `docker compose down`. Перед обновлением сделайте
-backup external PostgreSQL и проверьте env, legal manifest и healthchecks.
+проверенный backup PostgreSQL в Selectel S3 и проверьте env, legal manifest и
+healthchecks.

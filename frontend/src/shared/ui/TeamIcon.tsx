@@ -13,7 +13,7 @@ const KNOWN_TEAM_IDS = new Set([
   "team-nordline",
   "team-orion",
   "team-titan",
-  "team-kdafik",
+  "team-vector",
   "team-quantum",
   "team-zenith",
   "team-eclipse",
@@ -79,7 +79,7 @@ function TeamMark({ teamId }: { teamId: string }) {
           fill="currentColor"
         />
       );
-    case "team-kdafik":
+    case "team-vector":
       return (
         <path
           d="m4 18 3-7 3 7m2 0 3-11 3 11m2 0 1.5-5 1.5 5M3 20h18"

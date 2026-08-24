@@ -6,7 +6,7 @@ from email.message import EmailMessage
 from html import escape
 from typing import Protocol
 
-from app.core.config import YANDEX_SMTP_SENDER, Settings
+from app.core.config import Settings
 
 SMTP_TIMEOUT_SECONDS = 10
 
@@ -109,16 +109,22 @@ class SmtpEmailSender:
         code: str | None = None,
     ) -> None:
         message = EmailMessage()
-        message["From"] = YANDEX_SMTP_SENDER
+        message["From"] = self._settings.email_from_address
         message["To"] = recipient
         message["Subject"] = subject
         message.set_content(text_template.format(code=code or ""))
         message.add_alternative(html_template.format(code=escape(code or "")), subtype="html")
         try:
-            with smtplib.SMTP(
-                self._settings.smtp_host, self._settings.smtp_port, timeout=SMTP_TIMEOUT_SECONDS
+            ssl_context = ssl.create_default_context()
+            smtp_factory = smtplib.SMTP_SSL if self._settings.smtp_use_ssl else smtplib.SMTP
+            with smtp_factory(
+                self._settings.smtp_host,
+                self._settings.smtp_port,
+                timeout=SMTP_TIMEOUT_SECONDS,
+                **({"context": ssl_context} if self._settings.smtp_use_ssl else {}),
             ) as smtp:
-                smtp.starttls(context=ssl.create_default_context())
+                if self._settings.smtp_use_tls:
+                    smtp.starttls(context=ssl_context)
                 smtp.login(
                     self._settings.smtp_username,
                     self._settings.smtp_password.get_secret_value(),

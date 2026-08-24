@@ -12,9 +12,9 @@ LOCAL_EMAIL_CODE_SECRET = "local-only-email-code-secret-change-before-public-use
 LOCAL_TRUSTED_HOSTS = ["localhost", "127.0.0.1", "test", "testserver"]
 ALLOWED_CORS_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
 ALLOWED_CORS_HEADERS = ["Authorization", "Content-Type"]
-YANDEX_SMTP_HOST = "smtp.yandex.ru"
-YANDEX_SMTP_PORT = 587
-YANDEX_SMTP_SENDER = "Kdafik Racing Manager <kdafikracing@yandex.ru>"
+DEFAULT_SMTP_HOST = "smtp.yandex.ru"
+DEFAULT_SMTP_PORT = 587
+DEFAULT_SMTP_SENDER = "Kdafik Racing Manager <kdafikracing@yandex.ru>"
 
 
 class Settings(BaseSettings):
@@ -42,12 +42,13 @@ class Settings(BaseSettings):
     email_code_secret: SecretStr = Field(
         default_factory=lambda: SecretStr(LOCAL_EMAIL_CODE_SECRET), repr=False
     )
-    email_from_address: str = YANDEX_SMTP_SENDER
-    smtp_host: str = YANDEX_SMTP_HOST
-    smtp_port: int = YANDEX_SMTP_PORT
+    email_from_address: str = DEFAULT_SMTP_SENDER
+    smtp_host: str = DEFAULT_SMTP_HOST
+    smtp_port: int = DEFAULT_SMTP_PORT
     smtp_username: str = Field(default="", repr=False)
     smtp_password: SecretStr = Field(default_factory=lambda: SecretStr(""), repr=False)
     smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
 
     # LLM Settings
     llm_enabled: bool = True
@@ -136,14 +137,17 @@ class Settings(BaseSettings):
                 )
             if not self.smtp_username or not self.smtp_password.get_secret_value():
                 errors.append("SMTP credentials are required when email is enabled")
-            if self.email_from_address != YANDEX_SMTP_SENDER:
-                errors.append("email_from_address must be the approved Yandex sender")
-            if self.smtp_host != YANDEX_SMTP_HOST:
-                errors.append("smtp_host must be smtp.yandex.ru when email is enabled")
-            if self.smtp_port != YANDEX_SMTP_PORT:
-                errors.append("smtp_port must be 587 when email is enabled")
-            if not self.smtp_use_tls:
-                errors.append("smtp_use_tls must enable STARTTLS when email is enabled")
+            if not self.email_from_address:
+                errors.append("email_from_address must be configured when email is enabled")
+            if not self.smtp_host or self._contains_placeholder(self.smtp_host):
+                errors.append("smtp_host must be configured when email is enabled")
+            if not 1 <= self.smtp_port <= 65535:
+                errors.append("smtp_port must be between 1 and 65535 when email is enabled")
+            if self.smtp_use_tls == self.smtp_use_ssl:
+                errors.append(
+                    "exactly one of smtp_use_tls or smtp_use_ssl must be enabled "
+                    "when email is enabled"
+                )
 
         if self.environment == "production":
             # Legal text is part of the runtime contract: production must not
@@ -165,7 +169,6 @@ class Settings(BaseSettings):
             "localhost",
             "127.0.0.1",
             "::1",
-            "db",
         }
 
     @staticmethod
