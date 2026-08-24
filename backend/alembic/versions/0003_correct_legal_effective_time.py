@@ -1,6 +1,6 @@
 """Set final legal documents effective from midnight Moscow time.
 
-Revision ID: 0003_correct_legal_effective_time
+Revision ID: 0003_legal_time
 Revises: 0002_initial_data
 """
 
@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from alembic import op
 from app.models import LegalDocument
 
-revision: str = "0003_correct_legal_effective_time"
+revision: str = "0003_legal_time"
 down_revision: str | None = "0002_initial_data"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
