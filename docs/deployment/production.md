@@ -53,7 +53,12 @@ docker compose -f compose.yaml -f compose.production.yaml --profile production -
 
 Убедитесь в панели S3, что в приватном бакете появился объект в префиксе
 `postgres/`. Контейнер создаёт PostgreSQL custom dump, загружает его в Selectel
-S3 через S3 API и удаляет копии старше 30 дней. После проверки скопируйте
+S3 через S3 API и проверяет, что загруженный dump можно прочитать обратно.
+В панели Selectel откройте бакет → «Конфигурация» → «Лимиты», включите
+автоудаление и укажите **720 часов**. Так срок хранения ограничивается 30 днями
+без выдачи backup-сервису прав на просмотр и удаление остальных объектов.
+Не включайте versioning или Object Lock для этого бакета, иначе автоудаление не
+будет освобождать старые копии. После проверки скопируйте
 `deploy/systemd/kdafik-postgres-backup.service` и
 `deploy/systemd/kdafik-postgres-backup.timer` в `/etc/systemd/system/`, затем:
 
