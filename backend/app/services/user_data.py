@@ -82,7 +82,8 @@ def build_user_export(session: Session, user_id: UUID) -> dict[str, Any]:
         "generatedAt": _value(datetime.now(UTC)),
         "account": _record(
             user,
-            "id email email_verified_at display_name role active_season_id created_at updated_at",
+            "id email email_verified_at age_confirmed_at display_name role active_season_id "
+            "created_at updated_at",
         ),
         "seasons": [
             _season(season) for season in sorted(user.seasons, key=lambda item: str(item.id))

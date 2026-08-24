@@ -39,6 +39,7 @@ export type AuthRegisterRequestDto = {
   displayName: string;
   email: string;
   password: string;
+  ageConfirmed: boolean;
   legalAcceptances: LegalAcceptanceRequestDto[];
 };
 

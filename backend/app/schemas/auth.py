@@ -19,6 +19,7 @@ class RegisterRequest(AuthSchema):
     email: str = Field(min_length=3, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     password: str = Field(min_length=8, max_length=128)
     display_name: str = Field(min_length=1, max_length=120)
+    age_confirmed: bool
     legal_acceptances: list["LegalAcceptanceRequest"] = Field(min_length=3, max_length=3)
 
 

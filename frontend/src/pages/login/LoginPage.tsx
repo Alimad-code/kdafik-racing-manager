@@ -45,6 +45,8 @@ function getAuthErrorMessage(code: string | null) {
       return "Не удалось загрузить обязательные документы. Повторите попытку позже.";
     case "INVALID_LEGAL_ACCEPTANCE":
       return "Необходимо подтвердить каждый обязательный документ.";
+    case "AGE_CONFIRMATION_REQUIRED":
+      return "Регистрация доступна только пользователям старше 18 лет.";
     case "EMAIL_DELIVERY_UNAVAILABLE":
       return "Письмо сейчас не удалось отправить. Попробуйте позже.";
     case "NETWORK_ERROR":
@@ -76,6 +78,7 @@ export function LoginPage() {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [checks, setChecks] = useState<LegalChecks>(EMPTY_CHECKS);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   useEffect(() => {
     resetSessionState();
@@ -130,6 +133,10 @@ export function LoginPage() {
       setLocalError("Пароль должен быть не короче 8 символов.");
       return;
     }
+    if (mode === "register" && !ageConfirmed) {
+      setLocalError("Подтвердите, что вам исполнилось 18 лет.");
+      return;
+    }
     if (mode === "register" && (!documents || REQUIRED_KINDS.some((kind) => !checks[kind]))) {
       setLocalError("Подтвердите каждый обязательный документ.");
       return;
@@ -140,6 +147,7 @@ export function LoginPage() {
           displayName: trimmedDisplayName,
           email: trimmedLogin,
           password,
+          ageConfirmed,
           legalAcceptances: documents.map((document) => ({
             kind: document.kind,
             version: document.version,
@@ -167,7 +175,11 @@ export function LoginPage() {
   const errorMessage = localError ?? getAuthErrorMessage(authErrorCode);
   const isSubmitting = authIsLoading || authStatus === "checking";
   const isRegisterDisabled =
-    isSubmitting || !documents || documentsLoading || REQUIRED_KINDS.some((kind) => !checks[kind]);
+    isSubmitting ||
+    !documents ||
+    documentsLoading ||
+    !ageConfirmed ||
+    REQUIRED_KINDS.some((kind) => !checks[kind]);
   return (
     <main className="flex min-h-screen flex-col text-foreground">
       <section className="flex flex-1 items-center justify-center overflow-hidden px-3 py-4 sm:px-6 sm:py-6">
@@ -255,45 +267,55 @@ export function LoginPage() {
               </div>
             </div>
             {mode === "register" ? (
-              <fieldset className="grid gap-3 border border-border p-3" disabled={documentsLoading}>
-                <legend className="px-1 text-sm font-bold">Обязательные документы</legend>
-                {documentsLoading ? (
-                  <p className="text-sm text-muted-foreground">Загружаем документы…</p>
-                ) : null}
-                {documentsError ? (
-                  <div className="grid gap-2">
-                    <p className="text-sm text-danger">{documentsError}</p>
-                    <Button type="button" variant="secondary" onClick={() => void loadDocuments()}>
-                      Повторить загрузку
-                    </Button>
-                  </div>
-                ) : null}
-                {documents?.map((document) => (
-                  <label key={document.kind} className="flex items-start gap-3 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={checks[document.kind]}
-                      onChange={(event) =>
-                        setChecks((current) => ({
-                          ...current,
-                          [document.kind]: event.target.checked
-                        }))
-                      }
-                    />
-                    <span>
-                      Принимаю{" "}
-                      <a
-                        className="underline decoration-primary underline-offset-2"
-                        href={document.publicPath}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {document.title} (версия {document.version})
-                      </a>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
+              <>
+                <label className="flex items-start gap-3 border border-border p-3 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={ageConfirmed}
+                    onChange={(event) => setAgeConfirmed(event.target.checked)}
+                  />
+                  <span>Подтверждаю, что мне исполнилось 18 лет.</span>
+                </label>
+                <fieldset className="grid gap-3 border border-border p-3" disabled={documentsLoading}>
+                  <legend className="px-1 text-sm font-bold">Обязательные документы</legend>
+                  {documentsLoading ? (
+                    <p className="text-sm text-muted-foreground">Загружаем документы…</p>
+                  ) : null}
+                  {documentsError ? (
+                    <div className="grid gap-2">
+                      <p className="text-sm text-danger">{documentsError}</p>
+                      <Button type="button" variant="secondary" onClick={() => void loadDocuments()}>
+                        Повторить загрузку
+                      </Button>
+                    </div>
+                  ) : null}
+                  {documents?.map((document) => (
+                    <label key={document.kind} className="flex items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={checks[document.kind]}
+                        onChange={(event) =>
+                          setChecks((current) => ({
+                            ...current,
+                            [document.kind]: event.target.checked
+                          }))
+                        }
+                      />
+                      <span>
+                        Принимаю{" "}
+                        <a
+                          className="underline decoration-primary underline-offset-2"
+                          href={document.publicPath}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {document.title} (версия {document.version})
+                        </a>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              </>
             ) : null}
             {errorMessage ? (
               <div

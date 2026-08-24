@@ -39,6 +39,7 @@ class PendingRegistration(TimestampMixin, Base):
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     display_name_normalized: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    age_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     confirmation_code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     code_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     code_failed_attempts: Mapped[int] = mapped_column(default=0, nullable=False)

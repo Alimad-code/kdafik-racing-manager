@@ -73,6 +73,13 @@ class AuthService:
             email = self._normalize_email(payload.email)
             display_name = self._normalize_display_name(payload.display_name)
             display_name_normalized = self._normalize_display_name_for_lookup(display_name)
+            if not payload.age_confirmed:
+                raise DomainError(
+                    ErrorCode.AGE_CONFIRMATION_REQUIRED,
+                    "Account registration requires confirmation that the user is at least "
+                    "18 years old.",
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                )
             if not display_name:
                 raise DomainError(
                     ErrorCode.VALIDATION_ERROR,
@@ -129,6 +136,7 @@ class AuthService:
                 display_name_normalized=display_name_normalized,
                 email=email,
                 password_hash=hash_password(payload.password),
+                age_confirmed=True,
                 id=registration_id,
                 confirmation_code_hash=hash_email_code(
                     self.settings, "registration", registration_id, code
@@ -373,6 +381,13 @@ class AuthService:
                     self.repository.record_pending_registration_code_failure(registration_id, now)
                 self.repository.commit()
                 self._raise_invalid_email_action_code()
+            if not registration.age_confirmed:
+                raise DomainError(
+                    ErrorCode.AGE_CONFIRMATION_REQUIRED,
+                    "Account registration requires confirmation that the user is at least "
+                    "18 years old.",
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                )
             accepted = {
                 item.kind: item.version for item in registration.acceptances if item.accepted
             }
@@ -399,6 +414,7 @@ class AuthService:
                 password_hash=registration.password_hash,
                 role=UserRole.TEAM_PRINCIPAL,
                 email_verified_at=now,
+                age_confirmed_at=now if registration.age_confirmed else None,
             )
             self.repository.add_user(user)
             self.repository.flush()
