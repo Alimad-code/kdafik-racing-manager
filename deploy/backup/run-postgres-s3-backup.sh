@@ -37,7 +37,7 @@ export RCLONE_CONFIG_SELECTEL_FORCE_PATH_STYLE=false
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 object_name="postgres/kdafik-racing-manager-${timestamp}.dump"
-temporary_file="$(mktemp /tmp/kdafik-racing-manager-postgres-XXXXXXXX.dump)"
+temporary_file="$(mktemp /tmp/kdafik-racing-manager-postgres-XXXXXXXX)"
 trap 'rm -f "$temporary_file"' EXIT
 
 echo "Creating PostgreSQL backup ${object_name}."
