@@ -1,0 +1,9 @@
+[Unit]
+Description=Kdafik Racing Manager PostgreSQL backup to Selectel S3
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/kdafik-racing-manager
+ExecStart=/usr/bin/docker compose -f compose.yaml -f compose.production.yaml --profile production --profile maintenance run --rm backup

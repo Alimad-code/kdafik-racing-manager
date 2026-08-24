@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Kdafik Racing Manager PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 Europe/Moscow
+Persistent=true
+RandomizedDelaySec=10m
+Unit=kdafik-postgres-backup.service
+
+[Install]
+WantedBy=timers.target

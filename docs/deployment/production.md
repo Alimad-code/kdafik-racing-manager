@@ -31,6 +31,42 @@ deploy/tls/production/fullchain.pem
 deploy/tls/production/privkey.pem
 ```
 
+Каталог `deploy/tls/production/` должен быть доступен для прохода пользователю
+Nginx (UID 101), а сам ключ — только ему: используйте `chmod 755` для каталога,
+`chown 101:101` для двух файлов, `chmod 644 fullchain.pem` и
+`chmod 600 privkey.pem`. Не добавляйте сертификаты в Git.
+
+### Резервные копии PostgreSQL
+
+Создайте на deployment host файл `deploy/.env.backup` из
+`deploy/.env.backup.example`, внесите S3 Access key и Secret key сервисного
+пользователя Selectel, затем ограничьте доступ: `chmod 600 deploy/.env.backup`.
+Этот файл читает только одноразовый сервис `backup`; backend и frontend его не
+получают.
+
+Проверьте первый backup до публичного запуска:
+
+```sh
+docker compose -f compose.yaml -f compose.production.yaml --profile production --profile maintenance build backup
+docker compose -f compose.yaml -f compose.production.yaml --profile production --profile maintenance run --rm backup
+```
+
+Убедитесь в панели S3, что в приватном бакете появился объект в префиксе
+`postgres/`. Контейнер создаёт PostgreSQL custom dump, загружает его в Selectel
+S3 через S3 API и удаляет копии старше 30 дней. После проверки скопируйте
+`deploy/systemd/kdafik-postgres-backup.service` и
+`deploy/systemd/kdafik-postgres-backup.timer` в `/etc/systemd/system/`, затем:
+
+```sh
+systemctl daemon-reload
+systemctl enable --now kdafik-postgres-backup.timer
+systemctl list-timers kdafik-postgres-backup.timer
+```
+
+Таймер запускает backup ежедневно около 03:20 по Москве. Перед публичным
+запуском обязательно проверьте восстановление одной копии в отдельную
+временную базу, не перезаписывая рабочую БД.
+
 Запустите из корня репозитория:
 
 ```sh
