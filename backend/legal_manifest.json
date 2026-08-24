@@ -6,7 +6,7 @@
     "publicPath": "/legal/privacy",
     "sourcePath": "docs/legal/privacy-policy.md",
     "contentSha256": "887f3f9c4a82ea74811fe92f09662661e7183cbd2157788d2978e8e28457789c",
-    "effectiveAt": "2026-08-25T00:00:00Z",
+    "effectiveAt": "2026-08-24T21:00:00Z",
     "requiredAtRegistration": true,
     "isDraft": false
   },
@@ -17,7 +17,7 @@
     "publicPath": "/legal/consent",
     "sourcePath": "docs/legal/personal-data-consent.md",
     "contentSha256": "0d3145f663c051688a19faa1c14657788f72c5ba3482abbff6b234ffc439cee9",
-    "effectiveAt": "2026-08-25T00:00:00Z",
+    "effectiveAt": "2026-08-24T21:00:00Z",
     "requiredAtRegistration": true,
     "isDraft": false
   },
@@ -28,7 +28,7 @@
     "publicPath": "/legal/agreement",
     "sourcePath": "docs/legal/user-agreement.md",
     "contentSha256": "13368e71dde19a254f2e00ee6e9cb5c42e1e04569fc53436895a857c076e6b55",
-    "effectiveAt": "2026-08-25T00:00:00Z",
+    "effectiveAt": "2026-08-24T21:00:00Z",
     "requiredAtRegistration": true,
     "isDraft": false
   },
@@ -39,7 +39,7 @@
     "publicPath": "/legal/cookies",
     "sourcePath": "docs/legal/cookie-storage-notice.md",
     "contentSha256": "63e61c18905b26705f1bc7333fb73e8a52c081ae33f4c3e1802197c4097ff88c",
-    "effectiveAt": "2026-08-25T00:00:00Z",
+    "effectiveAt": "2026-08-24T21:00:00Z",
     "requiredAtRegistration": false,
     "isDraft": false
   }

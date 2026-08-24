@@ -35,7 +35,7 @@ LEGAL_DOCUMENTS = (
         "title": "Политика обработки персональных данных",
         "public_path": "/legal/privacy",
         "content_sha256": "887f3f9c4a82ea74811fe92f09662661e7183cbd2157788d2978e8e28457789c",
-        "effective_at": datetime(2026, 8, 25, tzinfo=UTC),
+        "effective_at": datetime(2026, 8, 24, 21, tzinfo=UTC),
         "required_at_registration": True,
     },
     {
@@ -45,7 +45,7 @@ LEGAL_DOCUMENTS = (
         "title": "Согласие на обработку персональных данных",
         "public_path": "/legal/consent",
         "content_sha256": "0d3145f663c051688a19faa1c14657788f72c5ba3482abbff6b234ffc439cee9",
-        "effective_at": datetime(2026, 8, 25, tzinfo=UTC),
+        "effective_at": datetime(2026, 8, 24, 21, tzinfo=UTC),
         "required_at_registration": True,
     },
     {
@@ -55,7 +55,7 @@ LEGAL_DOCUMENTS = (
         "title": "Пользовательское соглашение",
         "public_path": "/legal/agreement",
         "content_sha256": "13368e71dde19a254f2e00ee6e9cb5c42e1e04569fc53436895a857c076e6b55",
-        "effective_at": datetime(2026, 8, 25, tzinfo=UTC),
+        "effective_at": datetime(2026, 8, 24, 21, tzinfo=UTC),
         "required_at_registration": True,
     },
 )
